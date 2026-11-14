@@ -20,10 +20,13 @@ No build step, no server, no install. Open `index.html` in any modern browser (o
 - **Crew overview**: 4 fictional demo astronauts, each with an overall green / amber / red status. Click a crew member to inspect them.
 - **Vitals panel**: heart rate, blood oxygen (SpO₂), sleep, stress/mood score, exercise minutes, radiation dose. Each vital shows its current value, its safe-range band, and its status. Values update every 3 seconds (simulated feed).
 - **Per-crew radiation**: daily dose is tracked per astronaut, not per spacecraft. Each crew member has an exposure factor (EVA work, time in shielded modules), so the engineer who did the spacewalk carries a higher dose than the surgeon in the shielded lab.
-- **7-day trend charts**: heart rate, SpO₂, sleep and radiation dose, with the safe range shown as a green band, so a drift is visible before it becomes an alert. Switching environment rescales the radiation history to the new dose rate.
-- **Alert engine**: rule-based thresholds evaluated on every reading (e.g. resting HR above 100 bpm for consecutive readings → amber alert). Every alert carries a plain-language recommended action.
-- **Composite risk alerts**: combined signals raise a single high-priority alert. Short sleep (< 6 h) plus high stress (> 7/10) plus elevated resting heart rate (> 100 bpm) fires one "Compound Fatigue & Cardiovascular Strain" alert instead of three separate warnings.
-- **Scenario Simulator**: what-if controls in the header: Nominal Orbit, Solar Particle Event (radiation dose rate surges, shielded-module alert fires) and CO2 Scrubber Drift (crew SpO2 falls, resting heart rate rises, scrubber alert fires). Returning to Nominal restores baseline values.
+- **7-day trend charts**: heart rate, SpO₂, sleep and radiation dose, with the safe range shown as a green band, so a drift is visible before it becomes an alert. The radiation history is stored canonically (unit days of ISS-rate exposure) and re-derived for each environment, so switching environments never compounds rounding: ISS → Mars → ISS returns the exact original history.
+- **Alert engine**: rule-based thresholds evaluated on every reading (e.g. resting HR above 100 bpm for consecutive readings → amber alert). Every alert carries a plain-language recommended action. Alerts are ordered red before amber, raised/cleared events are logged once, and new critical alerts are announced to screen readers.
+- **Composite risk alerts**: combined signals raise a single high-priority alert that consolidates its parts. Short sleep (< 6 h) plus high stress (> 7/10) plus elevated resting heart rate (> 100 bpm) fires one "Compound Fatigue & Cardiovascular Strain" alert *instead of* the three overlapping component warnings; independent alerts (oxygen, radiation, exercise, scenario events) still fire separately.
+- **Scenario Simulator**: what-if controls in the header: Nominal Orbit, Solar Particle Event (radiation dose rate surges, shielded-module alert fires) and CO2 Scrubber Drift (crew SpO2 falls, resting heart rate rises, cabin CO2 climbs, scrubber alert fires). Leaving the CO2 scenario runs an explicit, labelled **recovery state**: vitals and cabin air interpolate deterministically back to the exact pre-scenario baseline over about 30 seconds.
+- **Cabin Environment panel**: simulated cabin CO2, oxygen partial pressure, pressure, temperature and humidity, with a cabin status badge. The CO2 scenario visibly drives the CO2 channel.
+- **Session-based exercise**: exercise minutes are not random. The day has four planned sessions (morning mobility, resistive block, aerobic block, evening top-up; 150 planned minutes against the 120 min/day target), each crew member completes a per-crew fraction of each session, and minutes accrue only while a session is actually running. The vitals tile, the timeline and the exercise alert all read the same session model.
+- **Per-astronaut hazard risk**: each hazard card shows the risk for the *selected* astronaut, computed from that astronaut's own values, plus the crew worst case as a separate line.
 - **Environment switcher**: Spacecraft / ISS / Moon / Mars. Switching changes the hazard context, radiation dose rates, and the countermeasures tracked.
 - **5-Hazards risk view**: each of NASA's five hazards of human spaceflight mapped to the vitals it affects, its current risk level, and the countermeasure being tracked, with hand-drawn inline SVG icons.
 - **Daily health timeline**: exercise, meals, sleep window and check-ins across the day; overdue items are flagged from the mission clock, and items can be ticked off.
@@ -48,12 +51,19 @@ Thresholds and reference ranges are grounded in NASA Human Research Program mate
 
 | Vital | Safe range used | Basis |
 |---|---|---|
-| Resting heart rate | 60–100 bpm | Standard clinical resting range; HRP cardiovascular risk context |
-| Blood oxygen (SpO₂) | 95–100% | Standard healthy saturation range |
-| Sleep | 7–9 h / night | NASA-recommended sleep target for crew |
-| Radiation dose | ISS ~0.2–0.5 mSv/day; career limit 600 mSv | NASA-STD-3001 (2022); ISS dose rates from HRP material |
-| Exercise | 120 min/day target | ISS countermeasure exercise protocol (ARED + treadmill) |
-| Stress / mood | ≤ 5 / 10 self-reported | Behavioural-health watch threshold used by the alert engine |
+| Resting heart rate | 60–100 bpm | Published reference range: standard clinical resting range; HRP cardiovascular risk context |
+| Blood oxygen (SpO₂) | 95–100% | Published reference range: standard healthy saturation range |
+| Sleep | 7–9 h / night | Published reference range; NASA schedules an 8.5 h sleep opportunity aboard ISS |
+| Radiation dose | ISS ~0.2–0.5 mSv/day; career limit 600 mSv | Career limit is a NASA requirement: NASA-STD-3001 Vol 1 §4.8.2; ISS planning rate 0.4 mSv/day sits inside the published ~0.2–0.5 range |
+| Lunar surface dose | 1.4 mSv/day | Published measurement: Chang'E-4 LND, ~1,369 µSv/day (Science Advances, 2020) |
+| Mars transit dose | 1.8 mSv/day | Published measurement: MSL/RAD, 1.81 ± 0.33 mSv/day (Zeitlin et al., Science, 2013) |
+| Exercise | 120 min/day target | NASA operational practice: ISS crew exercise ~2 h/day (ARED + aerobic) |
+| Stress / mood | ≤ 5 / 10 self-reported | Simulation assumption: demo cut-offs on a self-reported scale |
+| SPE dose surge | ×6 dose rate | Simulation assumption: event strength varies widely; NASA-STD-3001 protects crew to < 250 mSv for a design-reference SPE |
+| Daily dose action levels | 90% of a nominal day's dose | Simulation assumption: internal demo thresholds, not NASA limits |
+| Cabin CO2 watch / action | 1,500 / 2,500 ppm | Simulation assumption: demo cabin levels; real ISS CO2 runs higher than terrestrial indoor levels |
+
+The app itself carries the full classification under **Methodology & parameter basis** (Data & resources section): every parameter is labelled a published reference range, a NASA requirement or operational practice, a published measurement, or a simulation assumption.
 
 The five hazards (space radiation, isolation and confinement, distance from Earth, gravity fields, hostile/closed environments) and their effects (cardiovascular changes, muscle atrophy, bone loss, mental-health effects, vision and sleep problems) follow the NASA Human Research Program framework.
 

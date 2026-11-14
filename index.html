@@ -28,7 +28,7 @@
 
 <main>
   <!-- Mission controls: environment + scenario simulator -->
-  <div class="control-strip">
+  <div class="control-strip" role="group" aria-label="Mission controls">
     <div class="control-group">
       <span class="control-label" id="env-label">Environment</span>
       <div class="env-buttons" id="env-buttons" role="group" aria-labelledby="env-label"></div>
@@ -36,6 +36,7 @@
     <div class="control-group">
       <span class="control-label" id="scenario-label">Scenario Simulator · what-if controls</span>
       <div class="env-buttons" id="scenario-buttons" role="group" aria-labelledby="scenario-label"></div>
+      <span class="scenario-status" id="scenario-status" role="status" hidden></span>
     </div>
   </div>
 
@@ -84,22 +85,26 @@
           <div class="chart-box">
             <h3>Heart rate (bpm)</h3>
             <p class="chart-note">Safe range 60–100 bpm</p>
-            <canvas id="chart-hr" aria-label="7-day heart rate chart"></canvas>
+            <canvas id="chart-hr" aria-label="7-day heart rate chart" aria-describedby="desc-chart-hr"></canvas>
+            <p class="visually-hidden" id="desc-chart-hr"></p>
           </div>
           <div class="chart-box">
             <h3>Blood oxygen SpO2 (%)</h3>
             <p class="chart-note">Safe range 95–100%</p>
-            <canvas id="chart-spo2" aria-label="7-day blood oxygen chart"></canvas>
+            <canvas id="chart-spo2" aria-label="7-day blood oxygen chart" aria-describedby="desc-chart-spo2"></canvas>
+            <p class="visually-hidden" id="desc-chart-spo2"></p>
           </div>
           <div class="chart-box">
             <h3>Sleep (hours / night)</h3>
             <p class="chart-note">Target 7–9 h</p>
-            <canvas id="chart-sleep" aria-label="7-day sleep chart"></canvas>
+            <canvas id="chart-sleep" aria-label="7-day sleep chart" aria-describedby="desc-chart-sleep"></canvas>
+            <p class="visually-hidden" id="desc-chart-sleep"></p>
           </div>
           <div class="chart-box">
             <h3>Radiation dose (mSv / day)</h3>
             <p class="chart-note" id="rad-chart-note">Daily dose vs environment action level</p>
-            <canvas id="chart-rad" aria-label="7-day radiation dose chart"></canvas>
+            <canvas id="chart-rad" aria-label="7-day radiation dose chart" aria-describedby="desc-chart-rad"></canvas>
+            <p class="visually-hidden" id="desc-chart-rad"></p>
           </div>
         </div>
       </section>
@@ -115,6 +120,17 @@
           <h3>Alert log</h3>
           <ul id="alert-log"></ul>
         </div>
+      </section>
+
+      <!-- Cabin environment -->
+      <section class="panel" aria-label="Cabin environment">
+        <div class="section-head">
+          <h2>Cabin Environment</h2>
+          <span id="cabin-status"></span>
+          <span class="hint">Cabin air and climate channels for the current environment.</span>
+        </div>
+        <div class="vital-grid" id="cabin-grid"></div>
+        <p class="crew-note">The CO2 Scrubber Drift scenario drives the CO2 channel; the watch and action levels are demo thresholds (see Methodology below), not NASA limits.</p>
       </section>
     </div>
   </div>
@@ -132,8 +148,8 @@
     <!-- Daily timeline -->
     <section class="panel" aria-label="Daily health timeline">
       <div class="section-head">
-        <h2>Daily Health Timeline · Sol 142</h2>
-        <span class="hint">Click an item to mark it done.</span>
+        <h2 id="timeline-title">Daily Health Timeline · Sol 142</h2>
+        <span class="hint">Click an item, or focus it and press Enter, to mark it done.</span>
       </div>
       <ul class="timeline" id="timeline"></ul>
     </section>
@@ -165,6 +181,9 @@
         <h3>Data &amp; resources used</h3>
         <ul id="sources-list"></ul>
         <p class="ref-ranges">Reference ranges used: resting heart rate 60–100 bpm; SpO2 95–100%; sleep target 7–9 h; ISS crew effective dose ~0.2–0.5 mSv/day; NASA career radiation limit 600 mSv (NASA-STD-3001, 2022).</p>
+        <h3>Methodology &amp; parameter basis</h3>
+        <p class="ref-ranges">Every number in this app is one of three kinds: a published reference range, a NASA requirement or operational practice, or a simulation assumption used only for this demo. The kinds are not interchangeable, and demo thresholds are never presented as NASA limits.</p>
+        <ul id="methodology-list" class="methodology"></ul>
       </div>
     </div>
   </section>
@@ -175,6 +194,8 @@
   <p class="fine">Every live value on this page is simulated demo data for fictional crew members. VitalOrbit is a monitoring and awareness tool, not a medical device and not a diagnosis.</p>
   <p class="fine">AI tools assisted with coding support and text drafting under team direction; the idea and design are the team’s own. No NASA logos, branding, flags or mission identifiers are used in this project. No photos of people are used anywhere.</p>
 </footer>
+
+<div id="alert-announcer" class="visually-hidden" aria-live="assertive"></div>
 
 <script src="data.js"></script>
 <script src="app.js"></script>

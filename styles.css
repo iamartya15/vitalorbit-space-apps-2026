@@ -86,6 +86,17 @@ button { font-family: var(--font); cursor: pointer; }
   outline-offset: 2px;
 }
 
+/* Screen-reader-only content (chart summaries, alert announcer) */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ---------- Slim sticky header: status strip ---------- */
 header.topbar {
   background: var(--bg2);
@@ -214,7 +225,7 @@ section.panel {
 @media (max-width: 1024px) { .console-grid { grid-template-columns: 1fr; } }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
-.grid-2 > section.panel { margin-bottom: 0; }
+.grid-2 > section.panel { margin-bottom: 0; min-width: 0; }
 @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { main { padding: 14px 12px 32px; } }
 
@@ -322,9 +333,18 @@ section.panel {
 .vital-tile .v-value small { font-size: 0.88rem; color: var(--muted); font-weight: 400; }
 .vital-tile .v-range { font-size: var(--fs-sm); color: var(--muted); margin-top: 2px; }
 .vital-tile .v-sub { font-size: var(--fs-sm); color: var(--muted); }
-.range-bar { height: 6px; background: #1e3049; border-radius: 3px; margin-top: 8px; position: relative; overflow: hidden; }
-.range-bar .safe-zone { position: absolute; top: 0; bottom: 0; background: rgba(47, 191, 113, 0.45); }
-.range-bar .marker { position: absolute; top: -2px; bottom: -2px; width: 3px; background: #fff; border-radius: 2px; }
+/* Range bar: display:block (it is generated as a span; as an inline box its
+   height collapsed and zones rendered inconsistently). The track clips the
+   zones with overflow:hidden; the marker is a sibling of the track so it is
+   NOT clipped at the extremes, and it is centred on the value with a
+   transform instead of a fragile calc() offset. */
+.range-bar { display: block; height: 6px; margin-top: 8px; position: relative; }
+.range-track { position: absolute; inset: 0; background: #1e3049; border-radius: 3px; overflow: hidden; }
+.range-bar .zone { position: absolute; top: 0; bottom: 0; }
+.range-bar .zone.safe { background: rgba(47, 191, 113, 0.45); }
+.range-bar .zone.amber { background: rgba(245, 166, 35, 0.40); }
+.range-bar .zone.red { background: rgba(239, 83, 80, 0.45); }
+.range-bar .marker { position: absolute; top: -2px; bottom: -2px; width: 3px; transform: translateX(-50%); background: #fff; border-radius: 2px; z-index: 2; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45); }
 .crew-note { margin-top: 12px; color: var(--muted); font-size: 0.9rem; }
 
 /* ---------- Charts ---------- */
@@ -359,10 +379,9 @@ section.panel {
 .alert-log time { font-family: var(--mono); color: var(--text); }
 
 /* ---------- Hazards ---------- */
-.hazard-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
-@media (max-width: 1150px) { .hazard-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 760px) { .hazard-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 520px) { .hazard-grid { grid-template-columns: 1fr; } }
+.hazard-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 900px) { .hazard-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .hazard-grid { grid-template-columns: 1fr; } }
 .hazard-card {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -406,7 +425,7 @@ section.panel {
 
 /* ---------- Chatbot ---------- */
 .chat-log {
-  height: 300px;
+  height: clamp(230px, 36vh, 380px);
   overflow-y: auto;
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -433,7 +452,7 @@ section.panel {
 .chip:hover { border-color: var(--accent); color: var(--accent); }
 .chat-input-row { display: flex; gap: 8px; }
 .chat-input-row input {
-  flex: 1; background: var(--bg2); color: var(--text);
+  flex: 1; min-width: 0; background: var(--bg2); color: var(--text);
   border: 1px solid var(--border); border-radius: var(--r-md);
   padding: 10px 12px; font-size: 0.95rem; font-family: var(--font);
 }
@@ -451,6 +470,23 @@ section.panel {
 .about-cols ul { margin: 6px 0; padding-left: 20px; }
 .about-cols li { margin-bottom: 5px; font-size: 0.92rem; }
 .about-cols .ref-ranges { font-size: 0.88rem; color: var(--muted); }
+.about-cols .methodology li { font-size: 0.85rem; color: var(--muted); }
+.about-cols .methodology .basis { color: var(--accent); font-weight: 600; }
+
+/* ---------- Audit-pass additions ---------- */
+.scenario-status { font-size: var(--fs-sm); color: var(--amber); font-weight: 600; }
+.hazard-card .h-for { font-size: var(--fs-sm); color: var(--muted); margin-top: 4px; }
+@media (max-width: 720px) { .chat-log { height: 280px; } }
+
+/* Very small screens (320-380px): keep the header slim and tiles readable */
+@media (max-width: 380px) {
+  .control-label { white-space: normal; }
+  .brand h1 { font-size: 0.92rem; }
+  .sim-badge { padding: 2px 6px; }
+  .clockbox .clock { font-size: 0.82rem; }
+  .env-btn { padding: 6px 9px; }
+  .vital-tile .v-value { font-size: 1.35rem; }
+}
 
 footer {
   max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 30px;

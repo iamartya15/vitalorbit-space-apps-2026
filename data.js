@@ -6,6 +6,18 @@
      (NASA-STD-3001, 2022)
    - Resting heart rate 60-100 bpm; SpO2 95-100%; sleep target 7-9 h.
    Demo crew members are fictional.
+
+   Parameter honesty (audit pass, Nov 2026): every parameter used below is
+   one of three kinds, and the in-app Methodology list (PARAMETER_BASIS)
+   labels each one: (1) a published reference range, (2) a NASA requirement
+   or operational practice, or (3) a simulation assumption used only for
+   this demo. Demo thresholds (daily dose action levels, the SPE x6 surge
+   factor, stress cut-offs, cabin watch levels) are simulation assumptions,
+   never NASA limits. Verified anchors: career limit 600 mSv is
+   NASA-STD-3001 Vol 1 §4.8.2; the Mars transit rate 1.8 mSv/day is the
+   MSL/RAD measurement (1.81 ± 0.33 mSv/day, Zeitlin et al., Science 2013);
+   the lunar surface rate 1.4 mSv/day matches the Chang'E-4 LND measurement
+   (~1,369 µSv/day, Science Advances 2020).
 */
 'use strict';
 
@@ -96,7 +108,8 @@ const VITALORBIT = (() => {
   const CREW = [
     {
       id: 'reyes', name: 'Cmdr. A. Reyes', role: 'Commander', initials: 'AR', radFactor: 1.0,
-      vitals: { hr: 62, spo2: 98, sleep: 7.6, stress: 3.1, exercise: 95, radCumulative: 58.4 },
+      exerciseAdherence: { 'ex-morning': 1, 'ex-resistive': 1, 'ex-aerobic': 0.5, 'ex-evening': 1 },
+      vitals: { hr: 62, spo2: 98, sleep: 7.6, stress: 3.1, exercise: 105, radCumulative: 58.4 },
       history: {
         hr:    [61, 63, 60, 62, 64, 61, 62],
         spo2:  [98, 98, 99, 98, 98, 97, 98],
@@ -107,7 +120,8 @@ const VITALORBIT = (() => {
     },
     {
       id: 'chen', name: 'Dr. L. Chen', role: 'Flight Surgeon', initials: 'LC', radFactor: 0.9,
-      vitals: { hr: 68, spo2: 97, sleep: 7.1, stress: 4.0, exercise: 110, radCumulative: 57.9 },
+      exerciseAdherence: { 'ex-morning': 1, 'ex-resistive': 1, 'ex-aerobic': 1, 'ex-evening': 1 },
+      vitals: { hr: 68, spo2: 97, sleep: 7.1, stress: 4.0, exercise: 120, radCumulative: 57.9 },
       history: {
         hr:    [66, 68, 67, 69, 68, 67, 68],
         spo2:  [98, 97, 98, 97, 98, 98, 97],
@@ -118,6 +132,7 @@ const VITALORBIT = (() => {
     },
     {
       id: 'okafor', name: 'Eng. M. Okafor', role: 'Flight Engineer', initials: 'MO', radFactor: 1.35,
+      exerciseAdherence: { 'ex-morning': 0.5, 'ex-resistive': 0.5, 'ex-aerobic': 0, 'ex-evening': 0.5 },
       vitals: { hr: 104, spo2: 96, sleep: 5.4, stress: 7.2, exercise: 45, radCumulative: 59.1 },
       history: {
         hr:    [96, 97, 99, 100, 101, 103, 104],
@@ -130,7 +145,8 @@ const VITALORBIT = (() => {
     },
     {
       id: 'novak', name: 'Pilot S. Novak', role: 'Pilot', initials: 'SN', radFactor: 1.1,
-      vitals: { hr: 71, spo2: 98, sleep: 7.0, stress: 3.8, exercise: 95, radCumulative: 58.0 },
+      exerciseAdherence: { 'ex-morning': 1, 'ex-resistive': 1, 'ex-aerobic': 0.5, 'ex-evening': 1 },
+      vitals: { hr: 71, spo2: 98, sleep: 7.0, stress: 3.8, exercise: 105, radCumulative: 58.0 },
       history: {
         hr:    [70, 72, 71, 69, 72, 70, 71],
         spo2:  [98, 99, 98, 98, 99, 98, 98],
@@ -141,6 +157,76 @@ const VITALORBIT = (() => {
     },
   ];
 
+  /* ---------- Exercise sessions ----------
+     Exercise is session-based, not random: the mission day has four planned
+     sessions and each crew member completes a per-crew fraction of each
+     (exerciseAdherence: sessions cut short, or missed entirely, stay
+     visible). Minutes logged are a pure, deterministic function of mission
+     time: exerciseAt(crew, t) never changes outside a session window, can
+     never double-count a session, and resets naturally at day rollover.
+     The daily TARGET is 120 min (the ISS ~2 h/day exercise practice); the
+     four sessions total 150 planned minutes so the target is reachable
+     even when one session is cut short. */
+  const EXERCISE_TARGET_MIN = 120;
+  const EXERCISE_SESSIONS = [
+    { id: 'ex-morning', name: 'Morning mobility + core', start: 375, end: 405, minutes: 30 },
+    { id: 'ex-resistive', name: 'Exercise block 1: resistive (ARED)', start: 480, end: 540, minutes: 60 },
+    { id: 'ex-aerobic', name: 'Exercise block 2: aerobic', start: 960, end: 990, minutes: 30 },
+    { id: 'ex-evening', name: 'Evening aerobic top-up', start: 1140, end: 1170, minutes: 30 },
+  ];
+
+  function sessionProgress(session, minutesOfDay) {
+    if (minutesOfDay <= session.start) return 0;
+    if (minutesOfDay >= session.end) return 1;
+    return (minutesOfDay - session.start) / (session.end - session.start);
+  }
+
+  function exerciseAdherenceFor(crew, session) {
+    const a = crew.exerciseAdherence;
+    return a && a[session.id] != null ? a[session.id] : 1;
+  }
+
+  /* Total exercise minutes logged by this crew member at a mission time. */
+  function exerciseAt(crew, minutesOfDay) {
+    let total = 0;
+    for (const s of EXERCISE_SESSIONS) {
+      total += s.minutes * exerciseAdherenceFor(crew, s) * sessionProgress(s, minutesOfDay);
+    }
+    return Math.round(total);
+  }
+
+  /* Per-session state at a mission time: scheduled | active | complete |
+     partial | missed, with the minutes that crew member has logged. */
+  function exerciseSessionStates(crew, minutesOfDay) {
+    return EXERCISE_SESSIONS.map((s) => {
+      const p = sessionProgress(s, minutesOfDay);
+      const logged = Math.round(s.minutes * exerciseAdherenceFor(crew, s) * p);
+      let state;
+      if (minutesOfDay < s.start) state = 'scheduled';
+      else if (minutesOfDay < s.end) state = 'active';
+      else state = logged >= s.minutes ? 'complete' : logged > 0 ? 'partial' : 'missed';
+      return { session: s, state, logged, progress: p };
+    });
+  }
+
+  /* ---------- Cabin environment (simulated) ----------
+     One coherent simulated cabin: baseline air/climate channels plus demo
+     watch/action levels for CO2. The CO2 Scrubber Drift scenario drives
+     the CO2 channel in the app layer. Baselines and thresholds are
+     simulation assumptions (see PARAMETER_BASIS): ISS cabin CO2 in reality
+     runs well above terrestrial indoor levels, so these are demo values,
+     not NASA limits. */
+  const CABIN = {
+    baseline: { co2Ppm: 1150, ppo2Kpa: 21.2, pressureKpa: 101.3, tempC: 22.4, humidityPct: 46 },
+    co2Watch: 1500, co2Alert: 2500, co2Cap: 3400,
+  };
+
+  function cabinStatus(co2Ppm) {
+    if (co2Ppm >= CABIN.co2Alert) return 'red';
+    if (co2Ppm >= CABIN.co2Watch) return 'amber';
+    return 'green';
+  }
+
   /* ---------- 5 Hazards (NASA HRP) ---------- */
   const HAZARDS = [
     {
@@ -150,10 +236,10 @@ const VITALORBIT = (() => {
       vitals: ['Radiation dose (today + cumulative)', 'Heart rate', 'Immune markers (tracked via health log)'],
       countermeasure: 'Dosimeter checks at every check-in, shielded-habitat time, EVA dose budgeting.',
       riskFn: (crew, env) => {
+        // Per-astronaut: exactly the radiation vital status of THIS crew
+        // member, so the hazard panel can never contradict the vitals tile.
         const today = crew.vitals.radDayToday != null ? crew.vitals.radDayToday : env.doseRate * 0.7 * (crew.radFactor || 1);
-        if (today >= env.radAlertThreshold) return 'red';
-        if (today >= env.radAlertThreshold * 0.8 || env.doseRate >= 1.4) return 'amber';
-        return 'green';
+        return vitalStatus('radDay', today, env);
       },
     },
     {
@@ -163,9 +249,13 @@ const VITALORBIT = (() => {
       vitals: ['Stress score', 'Sleep hours', 'Mood check-ins'],
       countermeasure: 'Scheduled family video calls, private psychological support time, protected sleep window.',
       riskFn: (crew) => {
-        const avgStress = CREW.reduce((s, c) => s + c.vitals.stress, 0) / CREW.length;
-        if (avgStress > 6.5) return 'red';
-        if (avgStress > 5) return 'amber';
+        // Per-astronaut: THIS crew member's own stress and sleep. (An earlier
+        // version averaged stress across the whole crew, which labelled
+        // every astronaut with the crew's risk; that was wrong.)
+        const stress = crew.vitals.stress;
+        const sleep = crew.vitals.sleep;
+        if (stress > 7 || sleep < 5.5) return 'red';
+        if (stress > 5 || sleep < 6.5) return 'amber';
         return 'green';
       },
     },
@@ -175,7 +265,7 @@ const VITALORBIT = (() => {
       blurb: 'Mars averages about 140 million miles away: a three-year round trip with help minutes to hours away. The crew must be self-sufficient.',
       vitals: ['All vitals (autonomous monitoring)', 'Alert response time'],
       countermeasure: 'Onboard medical protocols, autonomous alerts, pre-packed treatment kits.',
-      riskFn: (crew, env) => (env.id === 'mars' ? 'amber' : env.id === 'moon' ? 'green' : 'green'),
+      riskFn: (crew, env) => (env.id === 'mars' ? 'amber' : 'green'),
     },
     {
       id: 'gravity', name: 'Gravity Fields',
@@ -183,9 +273,11 @@ const VITALORBIT = (() => {
       blurb: 'Microgravity, then 1/6 g or 3/8 g: muscles atrophy, bones lose density, fluids shift, and vision and balance change too.',
       vitals: ['Exercise minutes', 'Heart rate', 'Sleep (fluid-shift effects)'],
       countermeasure: '2 h daily exercise (resistive + aerobic), bone-density tracking, fluid-shift monitoring.',
-      riskFn: () => {
-        const worst = Math.min(...CREW.map((c) => c.vitals.exercise));
-        if (worst < 60) return 'amber';
+      riskFn: (crew) => {
+        // Per-astronaut: THIS crew member's exercise minutes today.
+        const ex = crew.vitals.exercise;
+        if (ex < 30) return 'red';
+        if (ex < 60) return 'amber';
         return 'green';
       },
     },
@@ -195,10 +287,11 @@ const VITALORBIT = (() => {
       blurb: 'The spacecraft is a sealed ecosystem: temperature, pressure, lighting, noise, microbes and air quality all affect health every day.',
       vitals: ['Blood oxygen (SpO2)', 'Sleep quality', 'Stress score'],
       countermeasure: 'Continuous cabin air and CO2 monitoring, lighting tuned to circadian rhythm, noise limits.',
-      riskFn: () => {
-        const minSpo2 = Math.min(...CREW.map((c) => c.vitals.spo2));
-        if (minSpo2 < 94) return 'red';
-        if (minSpo2 < 95) return 'amber';
+      riskFn: (crew) => {
+        // Per-astronaut: THIS crew member's own blood oxygen.
+        const o = crew.vitals.spo2;
+        if (o < 94) return 'red';
+        if (o < 95) return 'amber';
         return 'green';
       },
     },
@@ -208,11 +301,11 @@ const VITALORBIT = (() => {
   const TIMELINE = [
     { time: '06:00', title: 'Wake + morning health check-in', detail: 'Vitals snapshot, mood log, dosimeter read', done: true },
     { time: '07:00', title: 'Breakfast + hydration', detail: 'Calorie and fluid targets logged', done: true },
-    { time: '08:00', title: 'Exercise block 1: resistive (ARED)', detail: '60 min · bone & muscle countermeasure', done: true },
+    { time: '08:00', title: 'Exercise block 1: resistive (ARED)', detail: '60 min · bone & muscle countermeasure', done: true, session: 'ex-resistive' },
     { time: '10:00', title: 'Work / science operations', detail: 'Task blocks with 10-min movement breaks', done: true },
     { time: '12:30', title: 'Lunch', detail: 'Nutrition log + fluid top-up', done: true },
     { time: '14:00', title: 'Midday vitals check-in', detail: 'HR + SpO2 re-check', done: false },
-    { time: '16:00', title: 'Exercise block 2: aerobic', detail: '30 min · cardiovascular countermeasure', done: true },
+    { time: '16:00', title: 'Exercise block 2: aerobic', detail: '30 min · cardiovascular countermeasure', done: true, session: 'ex-aerobic' },
     { time: '17:30', title: 'Evening health log + mood check', detail: 'End-of-day symptom and mood log', done: false },
     { time: '18:00', title: 'Dinner + crew time', detail: 'Shared meal · isolation countermeasure', done: false },
     { time: '19:30', title: 'Video call home', detail: 'Family contact · isolation countermeasure', done: false },
@@ -227,6 +320,17 @@ const VITALORBIT = (() => {
     const alerts = [];
     const streak = crew.highHrStreak || 0;
 
+    // Composite fatigue rule, computed first: short sleep + high stress +
+    // elevated heart rate together. While this compound alert is active it
+    // CONSOLIDATES the overlapping heart-rate, sleep and stress warnings:
+    // they are not also raised as separate alerts, so the crew member gets
+    // one consolidated red alert instead of three amber ones plus the
+    // compound. The compound detail carries all three values, so no
+    // information is lost. Independent alerts (oxygen, radiation, exercise,
+    // scenario events) still fire separately.
+    const compound = v.sleep < 6 && v.stress > 7 && v.hr > 100;
+
+    if (!compound) {
     if (v.hr > 110) {
       alerts.push({ severity: 'red', code: 'HR-HIGH',
         title: 'Resting heart rate critically high',
@@ -271,10 +375,13 @@ const VITALORBIT = (() => {
         detail: crew.name + ': stress ' + v.stress.toFixed(1) + ' / 10 (target 5 or below).',
         action: 'Take a 15-min break, light activity or music, and keep the 19:30 video call home.' });
     }
+    }
     // Composite rule: three borderline vitals together are worse than any one
     // alone. Short sleep + high stress + elevated resting heart rate multiply
-    // fatigue and cardiac strain, so they raise ONE high-priority alert.
-    if (v.sleep < 6 && v.stress > 7 && v.hr > 100) {
+    // fatigue and cardiac strain, so they raise ONE high-priority alert that
+    // consolidates the component warnings above (see the note at the top of
+    // this function).
+    if (compound) {
       alerts.push({ severity: 'red', code: 'COMPOUND-FATIGUE',
         title: 'Compound Fatigue & Cardiovascular Strain',
         detail: crew.name + ': sleep ' + v.sleep.toFixed(1) + ' h, stress ' + v.stress.toFixed(1) + ' / 10 and resting heart rate ' + v.hr + ' bpm at the same time. Each alone is a watch item; combined they multiply fatigue and cardiac strain.',
@@ -493,9 +600,33 @@ const VITALORBIT = (() => {
     { name: 'NASA Life Sciences Portal (NLSP)', url: 'https://nlsp.nasa.gov' },
   ];
 
+  /* ---------- Methodology: what every parameter is based on ----------
+     basis is one of: 'Published reference range' | 'NASA requirement' |
+     'NASA operational practice' | 'Published measurement' |
+     'Simulation assumption'. Rendered in the app under Data & resources. */
+  const PARAMETER_BASIS = [
+    { param: 'Resting heart rate 60-100 bpm', basis: 'Published reference range', source: 'Standard adult clinical range' },
+    { param: 'Blood oxygen (SpO2) 95-100%', basis: 'Published reference range', source: 'Standard adult clinical range' },
+    { param: 'Sleep target 7-9 h per night', basis: 'Published reference range', source: 'General adult guidance; NASA schedules an 8.5 h sleep opportunity aboard ISS' },
+    { param: 'Exercise target 120 min/day', basis: 'NASA operational practice', source: 'ISS crew exercise runs about 2 h per day (resistive + aerobic countermeasures)' },
+    { param: 'Radiation career limit 600 mSv', basis: 'NASA requirement', source: 'NASA-STD-3001 Vol 1, section 4.8.2 (effective dose, all ages and sexes)' },
+    { param: 'ISS dose rate 0.4 mSv/day', basis: 'Published reference range', source: 'Planning value inside the published ISS effective-dose range of about 0.2-0.5 mSv/day' },
+    { param: 'Moon dose rate 1.4 mSv/day', basis: 'Published measurement', source: "Chang'E-4 Lunar Lander Neutrons and Dosimetry: about 1,369 microSv/day on the surface (Science Advances, 2020)" },
+    { param: 'Mars dose rate 1.8 mSv/day', basis: 'Published measurement', source: 'MSL Radiation Assessment Detector, Mars cruise: 1.81 +/- 0.33 mSv/day (Zeitlin et al., Science, 2013)' },
+    { param: 'Spacecraft transit dose rate 0.6 mSv/day', basis: 'Simulation assumption', source: 'Planning value between the LEO and lunar rates; no single published constant' },
+    { param: 'Daily dose action levels (90% of a nominal day)', basis: 'Simulation assumption', source: 'Internal demo thresholds for the dashboard, not NASA limits' },
+    { param: 'Solar Particle Event dose multiplier x6', basis: 'Simulation assumption', source: 'Event strength varies widely; NASA-STD-3001 separately requires crew protection to under 250 mSv for a design-reference SPE' },
+    { param: 'Per-crew exposure factors 0.9-1.35 (EVA vs shielded time)', basis: 'Simulation assumption', source: 'Models different EVA and shielding exposure across the demo crew' },
+    { param: 'Stress scale cut-offs (watch above 5, elevated above 7, critical above 8.5 of 10)', basis: 'Simulation assumption', source: 'Self-reported demo scale; NASA uses validated instruments, not a single 0-10 cut-off' },
+    { param: 'Cabin baselines and CO2 watch/action levels (1,500 / 2,500 ppm)', basis: 'Simulation assumption', source: 'Demo cabin values; real ISS CO2 runs higher than terrestrial indoor levels' },
+  ];
+
   return {
     RANGES, ENVIRONMENTS, SCENARIOS, CREW, DAYS, HAZARDS, TIMELINE,
-    CHATBOT_QA, SOURCES, vitalStatus, worstStatus, evaluateAlerts, answerChatbot, answerLiveState,
+    CHATBOT_QA, SOURCES, PARAMETER_BASIS,
+    EXERCISE_TARGET_MIN, EXERCISE_SESSIONS, CABIN,
+    vitalStatus, worstStatus, evaluateAlerts, answerChatbot, answerLiveState,
+    sessionProgress, exerciseAt, exerciseSessionStates, cabinStatus,
   };
 })();
 
