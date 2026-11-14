@@ -149,6 +149,7 @@ function renderEnvButtons() {
       renderHazards();
       rebuildRadChart();
       updateChartTodayPoints();
+      renderOverview();
     });
     box.appendChild(b);
   });
@@ -160,7 +161,7 @@ function renderEnvPanel() {
   $('env-gravity').textContent = 'Gravity: ' + e.gravity + ' · Comms delay: ' + e.commDelay;
   $('env-context').textContent = e.context;
   $('env-countermeasures').textContent = e.countermeasures;
-  $('env-dose-rate').textContent = effectiveDoseRate().toFixed(1) + ' mSv/day' +
+  $('env-dose-rate').textContent = effectiveDoseRate().toFixed(1) + ' mSv/day (dose equivalent)' +
     (scenarioId !== 'nominal' ? ' (scenario simulation: ' + V.SCENARIOS[scenarioId].label + ')' : '');
   $('env-dose-budget').textContent = e.radAlertThreshold.toFixed(2) + ' mSv/day';
   $('env-line').textContent =
@@ -252,6 +253,7 @@ function setScenario(id) {
   renderHazards();
   renderCabin();
   updateChartTodayPoints();
+  renderOverview();
 }
 
 /* ---------- Crew cards ---------- */
@@ -283,6 +285,8 @@ function renderCrewCards() {
       renderHazards(); // hazard risk is shown for the selected astronaut
       renderTimeline(); // timeline session lines are for the selected astronaut
       updateChartsForCrew();
+      renderOverview();
+      renderAdherence();
     });
     grid.appendChild(card);
   });
@@ -324,9 +328,9 @@ function exerciseSubText(crew) {
   return 'All sessions complete for today';
 }
 
-function vitalTileHTML(label, valueText, rangeText, subText, status, barCfg) {
+function vitalTileHTML(label, valueText, rangeText, subText, status, barCfg, provTag) {
   return '<div class="vital-tile ' + status + '">' +
-    '<div class="v-label"><span>' + label + '</span><span class="badge ' + status + '">' + statusWord(status) + '</span></div>' +
+    '<div class="v-label"><span>' + label + (provTag ? ' <span class="prov-tag">' + provTag + '</span>' : '') + '</span><span class="badge ' + status + '">' + statusWord(status) + '</span></div>' +
     '<div class="v-value">' + valueText + '</div>' +
     '<div class="v-range">' + rangeText + '</div>' +
     (barCfg ? rangeBarHTML(barCfg) : '') +
@@ -349,27 +353,39 @@ function renderVitals() {
   const tiles = [];
   tiles.push(vitalTileHTML('Heart rate', v.hr + ' <small>bpm</small>', 'Safe range 60–100 bpm', 'Resting',
     V.vitalStatus('hr', v.hr),
-    { min: 40, max: 120, safeLow: 60, safeHigh: 100, value: v.hr, amber: [[50, 60], [100, 110]], red: [[40, 50], [110, 120]] }));
+    { min: 40, max: 120, safeLow: 60, safeHigh: 100, value: v.hr, amber: [[50, 60], [100, 110]], red: [[40, 50], [110, 120]] },
+    V.PROVENANCE.simulated.tag));
   tiles.push(vitalTileHTML('Blood oxygen (SpO2)', v.spo2 + ' <small>%</small>', 'Safe range 95–100%', 'Blood oxygen saturation',
     V.vitalStatus('spo2', v.spo2),
-    { min: 85, max: 100, safeLow: 95, safeHigh: 100, value: v.spo2, amber: [[94, 95]], red: [[85, 94]] }));
+    { min: 85, max: 100, safeLow: 95, safeHigh: 100, value: v.spo2, amber: [[94, 95]], red: [[85, 94]] },
+    V.PROVENANCE.simulated.tag));
   tiles.push(vitalTileHTML('Sleep (last night)', v.sleep.toFixed(1) + ' <small>h</small>', 'Target 7–9 h', 'Last night',
     V.vitalStatus('sleep', v.sleep),
-    { min: 0, max: 12, safeLow: 7, safeHigh: 9, value: v.sleep, amber: [[5, 7], [9, 12]], red: [[0, 5]] }));
+    { min: 0, max: 12, safeLow: 7, safeHigh: 9, value: v.sleep, amber: [[5, 7], [9, 12]], red: [[0, 5]] },
+    V.PROVENANCE.simulated.tag));
   tiles.push(vitalTileHTML('Stress score', v.stress.toFixed(1) + ' <small>/ 10</small>', 'Target 5 or below', 'Self-reported, higher = worse',
     V.vitalStatus('stress', v.stress),
-    { min: 0, max: 10, safeLow: 0, safeHigh: 5, value: v.stress, amber: [[5, 8.5]], red: [[8.5, 10]] }));
+    { min: 0, max: 10, safeLow: 0, safeHigh: 5, value: v.stress, amber: [[5, 8.5]], red: [[8.5, 10]] },
+    V.PROVENANCE.simulated.tag));
   tiles.push(vitalTileHTML('Exercise today', v.exercise + ' <small>min</small>', 'Target 120 min/day', exerciseSubText(crew),
     V.vitalStatus('exercise', v.exercise),
-    { min: 0, max: 150, safeLow: 90, safeHigh: 150, value: v.exercise, amber: [[30, 90]], red: [[0, 30]] }));
+    { min: 0, max: 150, safeLow: 90, safeHigh: 150, value: v.exercise, amber: [[30, 90]], red: [[0, 30]] },
+    V.PROVENANCE.derived.tag));
+  // Dose projection: transparent rate-times-time estimate from the
+  // simulated rate, labelled ESTIMATE with its method. Not a forecast.
+  const proj = V.doseProjection(crew, e, scenarioId, missionDayFraction());
+  const projText = proj.hoursToActionLevel == null
+    ? 'Estimate: at the current simulated rate (' + proj.ratePerDay.toFixed(2) + ' mSv/day dose equivalent) the action level is already reached today. ' + proj.careerNote
+    : 'Estimate: at the current simulated rate (' + proj.ratePerDay.toFixed(2) + ' mSv/day dose equivalent) the action level is reached in ~' + proj.hoursToActionLevel.toFixed(1) + ' h. ' + proj.careerNote;
   tiles.push(vitalTileHTML('Radiation dose', radToday.toFixed(2) + ' <small>mSv today</small>',
-    'Daily action level ' + e.radAlertThreshold.toFixed(2) + ' mSv (' + e.label + ')',
-    'Cumulative mission dose ' + v.radCumulative.toFixed(1) + ' mSv · career limit 600 mSv',
+    'Dose equivalent · daily action level ' + e.radAlertThreshold.toFixed(2) + ' mSv (' + e.label + ')',
+    'Cumulative mission dose ' + v.radCumulative.toFixed(1) + ' mSv dose equivalent (simulated) · career limit 600 mSv effective dose<br>' + projText,
     V.vitalStatus('radDay', radToday, e),
     // Watch zone starts at 80% of the action level, exactly where the
     // RAD-WATCH alert starts; the alert zone starts at the level itself.
     { min: 0, max: e.radAlertThreshold * 1.5, safeLow: 0, safeHigh: e.radAlertThreshold * 0.8, value: radToday,
-      amber: [[e.radAlertThreshold * 0.8, e.radAlertThreshold]], red: [[e.radAlertThreshold, e.radAlertThreshold * 1.5]] }));
+      amber: [[e.radAlertThreshold * 0.8, e.radAlertThreshold]], red: [[e.radAlertThreshold, e.radAlertThreshold * 1.5]] },
+    V.PROVENANCE.derived.tag + ' · ' + V.PROVENANCE.estimate.tag));
 
   $('vital-grid').innerHTML = tiles.join('');
   $('crew-note').textContent = crew.note;
@@ -389,23 +405,46 @@ function renderCabin() {
     scenarioId === 'co2' ? 'Scrubber drift active: CO2 climbing' : recovery ? 'Recovery in progress: returning to baseline' : 'Scrubber nominal',
     co2Status,
     { min: 400, max: 4000, safeLow: 400, safeHigh: V.CABIN.co2Watch, value: cabin.co2Ppm,
-      amber: [[V.CABIN.co2Watch, V.CABIN.co2Alert]], red: [[V.CABIN.co2Alert, 4000]] }));
+      amber: [[V.CABIN.co2Watch, V.CABIN.co2Alert]], red: [[V.CABIN.co2Alert, 4000]] },
+    V.PROVENANCE.simulated.tag));
   tiles.push(vitalTileHTML('Oxygen partial pressure', cabin.ppo2Kpa.toFixed(1) + ' <small>kPa</small>',
     'Sea-level reference 21.2 kPa', 'Cabin air mix',
     cabin.ppo2Kpa < 20 ? 'amber' : 'green',
-    { min: 15, max: 25, safeLow: 19, safeHigh: 23, value: cabin.ppo2Kpa }));
+    { min: 15, max: 25, safeLow: 19, safeHigh: 23, value: cabin.ppo2Kpa },
+    V.PROVENANCE.simulated.tag));
   tiles.push(vitalTileHTML('Cabin pressure', cabin.pressureKpa.toFixed(1) + ' <small>kPa</small>',
     'Sea-level reference 101.3 kPa', 'Hull integrity nominal', 'green',
-    { min: 90, max: 110, safeLow: 98, safeHigh: 104, value: cabin.pressureKpa }));
+    { min: 90, max: 110, safeLow: 98, safeHigh: 104, value: cabin.pressureKpa },
+    V.PROVENANCE.simulated.tag));
   tiles.push(vitalTileHTML('Temperature', cabin.tempC.toFixed(1) + ' <small>°C</small>',
     'Comfort band 20-24.5 °C', 'Cabin climate',
     cabin.tempC > 26 || cabin.tempC < 18 ? 'amber' : 'green',
-    { min: 15, max: 30, safeLow: 20, safeHigh: 24.5, value: cabin.tempC }));
+    { min: 15, max: 30, safeLow: 20, safeHigh: 24.5, value: cabin.tempC },
+    V.PROVENANCE.simulated.tag));
   tiles.push(vitalTileHTML('Humidity', Math.round(cabin.humidityPct) + ' <small>%</small>',
     'Comfort band 35-60%', 'Cabin climate',
     cabin.humidityPct > 65 || cabin.humidityPct < 30 ? 'amber' : 'green',
-    { min: 20, max: 80, safeLow: 35, safeHigh: 60, value: cabin.humidityPct }));
+    { min: 20, max: 80, safeLow: 35, safeHigh: 60, value: cabin.humidityPct },
+    V.PROVENANCE.simulated.tag));
   grid.innerHTML = tiles.join('');
+  // Cabin decision support: when CO2 leaves its intended demo range, show
+  // the same fixed guidance shape as the alerts (trigger, evidence,
+  // suggested informational action, basis, limitation). Display only.
+  const guide = $('cabin-guidance');
+  if (guide) {
+    if (recovery) {
+      guide.hidden = false;
+      guide.innerHTML = '<b>Cabin guidance:</b> Trigger: CO2 Scrubber Drift scenario ended. Evidence: cabin CO2 is returning from ' +
+        Math.round(cabin.co2Ppm) + ' ppm toward the 1,150 ppm baseline. Suggested action (informational): keep monitoring until the recovery completes. Basis: Simulation guidance. Limitation: simulated demo data only, not a flight procedure.';
+    } else if (co2Status !== 'green') {
+      guide.hidden = false;
+      guide.innerHTML = '<b>Cabin guidance:</b> Trigger: cabin CO2 at or above the ' + (co2Status === 'red' ? '2,500 ppm action level' : '1,500 ppm watch level') +
+        ' (demo levels). Evidence: cabin CO2 is ' + Math.round(cabin.co2Ppm) + ' ppm. Suggested action (informational): switch to the backup CO2 scrubber, increase cabin ventilation, and re-check crew SpO2 every 15 min. Basis: Operationally referenced. Limitation: demo thresholds on simulated data, not NASA limits and not a flight procedure.';
+    } else {
+      guide.hidden = true;
+      guide.innerHTML = '';
+    }
+  }
 }
 
 /* One cabin step per live tick. Under the CO2 scenario the CO2 channel
@@ -454,10 +493,22 @@ function makeChart(canvasId, low, high, data, yMin, yMax, yLabel) {
     options: {
       responsive: true, maintainAspectRatio: false,
       animation: false, // deterministic rendering: no mid-animation frames in screenshots
-      plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index', intersect: false,
+          backgroundColor: '#101a28', borderColor: '#2b405c', borderWidth: 1,
+          titleColor: '#e7eef7', bodyColor: '#c9d8ea', padding: 10,
+          // Only the measured series is explained; the safe-band datasets are shading, not values.
+          filter: (item) => item.dataset.label === yLabel,
+          callbacks: { label: (item) => ' ' + item.dataset.label + ': ' + item.parsed.y },
+        },
+      },
       scales: {
-        x: { grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.tick, font: { size: 10 } } },
-        y: { min: yMin, max: yMax, grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.tick, font: { size: 10 } } },
+        x: { grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.tick, font: { size: 10 } },
+             title: { display: true, text: 'Mission day', color: CHART_COLORS.tick, font: { size: 10 } } },
+        y: { min: yMin, max: yMax, grid: { color: CHART_COLORS.grid }, ticks: { color: CHART_COLORS.tick, font: { size: 10 } },
+             title: { display: true, text: yLabel, color: CHART_COLORS.tick, font: { size: 10 } } },
       },
     },
   });
@@ -470,7 +521,7 @@ function buildCharts() {
   charts.hr = makeChart('chart-hr', 60, 100, crew.history.hr, 50, 115, 'Heart rate (bpm)');
   charts.spo2 = makeChart('chart-spo2', 95, 100, crew.history.spo2, 90, 100, 'SpO2 (%)');
   charts.sleep = makeChart('chart-sleep', 7, 9, crew.history.sleep, 4, 10, 'Sleep (h)');
-  charts.rad = makeChart('chart-rad', 0, e.radAlertThreshold, crew.history.radDay, 0, Math.max(2, e.radAlertThreshold * 1.4), 'Radiation (mSv/day)');
+  charts.rad = makeChart('chart-rad', 0, e.radAlertThreshold, crew.history.radDay, 0, Math.max(2, e.radAlertThreshold * 1.4), 'Radiation dose equivalent (mSv/day)');
 }
 
 function updateChartsForCrew() {
@@ -497,7 +548,7 @@ function rebuildRadChart() {
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   }
   charts.rad = makeChart('chart-rad', 0, e.radAlertThreshold, crewById(selectedCrewId).history.radDay,
-    0, Math.max(2, e.radAlertThreshold * 1.4), 'Radiation (mSv/day)');
+    0, Math.max(2, e.radAlertThreshold * 1.4), 'Radiation dose equivalent (mSv/day)');
 }
 
 function updateChartTodayPoints() {
@@ -528,9 +579,9 @@ function renderChartSummaries() {
     range(crew.history.spo2, (x) => x + '%') + '. Today: ' + crew.vitals.spo2 + '%. Safe range 95 to 100%.');
   set('desc-chart-sleep', 'Sleep chart, last 7 days for ' + crew.name + ': ' +
     range(crew.history.sleep, (x) => x.toFixed(1) + ' h') + '. Last night: ' + crew.vitals.sleep.toFixed(1) + ' h. Target 7 to 9 h.');
-  set('desc-chart-rad', 'Radiation chart, last 7 days for ' + crew.name + ' in the ' + e.label +
+  set('desc-chart-rad', 'Radiation dose equivalent chart, last 7 days for ' + crew.name + ' in the ' + e.label +
     ' environment: ' + range(crew.history.radDay, (x) => x.toFixed(2) + ' mSv') +
-    '. Today so far: ' + radTodayFor(crew).toFixed(2) + ' mSv. Daily action level ' + e.radAlertThreshold.toFixed(2) + ' mSv.');
+    '. Today so far: ' + radTodayFor(crew).toFixed(2) + ' mSv. Daily action level ' + e.radAlertThreshold.toFixed(2) + ' mSv. All values are simulated dose equivalent.');
 }
 
 /* ---------- Alerts ---------- */
@@ -586,13 +637,20 @@ function renderAlerts() {
   }
   // Red first, then amber.
   all.sort((a, b) => (a.alert.severity === 'red' ? 0 : 1) - (b.alert.severity === 'red' ? 0 : 1));
-  list.innerHTML = all.map((x) =>
-    '<div class="alert-item ' + x.alert.severity + '">' +
+  list.innerHTML = all.map((x) => {
+    // Decision support: every alert carries its trigger, its basis label
+    // and its limitation next to the evidence and the suggested action.
+    // Displaying guidance never changes any simulated value.
+    const g = V.alertGuidance(x.alert);
+    return '<div class="alert-item ' + x.alert.severity + '">' +
     '<div class="a-top"><span class="badge ' + x.alert.severity + '">' + x.alert.severity.toUpperCase() + '</span>' +
     '<span class="a-title">' + x.alert.title + ' · ' + x.crew.name + '</span></div>' +
     '<div class="a-detail">' + x.alert.detail + '</div>' +
-    '<div class="a-action"><b>Recommended action:</b> ' + x.alert.action + '</div>' +
-    '</div>').join('');
+    '<div class="a-guide"><b>Trigger:</b> ' + g.trigger + '<br>' +
+    '<b>Basis:</b> ' + g.basis + ' · <b>Limitation:</b> ' + g.limitation + '</div>' +
+    '<div class="a-action"><b>Suggested action (informational):</b> ' + x.alert.action + '</div>' +
+    '</div>';
+  }).join('');
 }
 
 /* ---------- Hazards ---------- */
@@ -607,13 +665,22 @@ function renderHazards() {
     const crewWorst = V.worstStatus(V.CREW.map((c) => h.riskFn(c, env())));
     const card = document.createElement('div');
     card.className = 'hazard-card';
+    // Explainable detail: inputs, the rule in plain words, the threshold
+    // state for THIS astronaut, the evidence basis and the countermeasure.
+    const ex = V.hazardExplain(h, crew, env());
     card.innerHTML =
       '<div class="h-top"><span class="h-icon" aria-hidden="true">' + h.icon + '</span><h3>' + h.name + '</h3></div>' +
       '<p>' + h.blurb + '</p>' +
       '<p style="margin-top:8px;"><span class="badge ' + risk + '">Risk: ' + statusWord(risk) + '</span></p>' +
       '<p class="h-for">Risk shown for ' + crew.name + ' · crew worst case: ' + statusWord(crewWorst) + '</p>' +
       '<p class="h-vitals"><b>Watched via:</b> ' + h.vitals.join(' · ') + '</p>' +
-      '<p class="h-cm"><b>Countermeasure tracked:</b> ' + h.countermeasure + '</p>';
+      '<p class="h-cm"><b>Countermeasure tracked:</b> ' + h.countermeasure + '</p>' +
+      '<details class="h-details"><summary>Why this risk? Inputs, rule and evidence</summary>' +
+      '<p><b>Inputs:</b> ' + ex.inputs.join(' · ') + '</p>' +
+      '<p><b>How the risk is decided:</b> ' + ex.rule + '</p>' +
+      '<p><b>Status:</b> ' + ex.status + '</p>' +
+      '<p><b>Evidence basis:</b> ' + ex.evidence + '</p>' +
+      '<p><b>Countermeasure information:</b> ' + ex.mitigation + '</p></details>';
     grid.appendChild(card);
   });
 }
@@ -695,10 +762,15 @@ function askChatbot(question) {
   const q = question.trim();
   if (!q) return;
   addChatMessage(q, 'user');
-  // First pass: questions about the selected crew member's own state are
-  // answered from their live values; everything else uses the Q&A bank.
+  // Layer order: (1) explainable state-aware answers (why flagged, trends,
+  // scenarios, hazards, projections, data-not-held), (2) live-state answers
+  // about the selected crew member, (3) the Q&A bank.
   const crew = crewById(selectedCrewId);
-  const ans = V.answerLiveState(q, crew, radTodayFor(crew), env()) || V.answerChatbot(q);
+  const ctx = {
+    crew, env: env(), scenario: scenarioId, frac: missionDayFraction(),
+    radToday: radTodayFor(crew), cabin, minutesOfDay: missionDayMinutes() % 1440,
+  };
+  const ans = V.answerExplain(q, ctx) || V.answerLiveState(q, crew, radTodayFor(crew), env()) || V.answerChatbot(q);
   addChatMessage(ans.a, 'bot', ans.learn);
 }
 
@@ -743,8 +815,18 @@ function renderSources() {
     '<li><a href="' + s.url + '" target="_blank" rel="noopener">' + s.name + '</a></li>').join('');
   const ml = $('methodology-list');
   if (ml) {
-    ml.innerHTML = V.PARAMETER_BASIS.map((p) =>
-      '<li><b>' + p.param + '</b> · <span class="basis">' + p.basis + '</span> · ' + p.source + '</li>').join('');
+    ml.innerHTML = V.PARAMETER_BASIS.map((p) => {
+      const ref = p.ref ? V.REFERENCES.find((r) => r.id === p.ref) : null;
+      const refText = ref ? ' <span class="ref-name">[' + ref.publisher + (ref.year ? ', ' + ref.year : '') + ']</span>' : '';
+      return '<li><b>' + p.param + '</b> · <span class="basis">' + p.basis + '</span> · ' + p.source + refText + '</li>';
+    }).join('');
+  }
+  const rl = $('references-list');
+  if (rl) {
+    rl.innerHTML = V.REFERENCES.map((r) =>
+      '<li><b>' + r.title + '</b> · ' + r.publisher + (r.year ? ', ' + r.year : '') +
+      (r.url ? ' · <a href="' + r.url + '" target="_blank" rel="noopener">source</a>' : '') +
+      '<br>Supports: ' + r.supports + '</li>').join('');
   }
 }
 
@@ -839,6 +921,147 @@ function liveTick() {
   renderHazards();
   renderCabin();
   updateChartTodayPoints();
+  renderOverview();
+  renderAdherence();
+}
+
+/* ---------- Overview summaries (redesign) ----------
+   The Overview view shows summaries only. Every number here is computed
+   from the same live state and the same rule functions the full views
+   use (crewOverallStatus, evaluateAlerts, cabinStatus, hazard riskFn),
+   so a summary can never disagree with its detail view. */
+function renderOverview() {
+  const mission = $('ov-mission');
+  if (!mission) return;
+  const e = env();
+  const crew = crewById(selectedCrewId);
+  const frac = missionDayFraction();
+
+  const scenarioText = recovery ? 'Recovery in progress (returning to baseline)'
+    : V.SCENARIOS[scenarioId].label;
+  mission.innerHTML =
+    '<div class="ov-line"><span>Environment</span><span class="val">' + e.label + '</span></div>' +
+    '<div class="ov-line"><span>Mission clock</span><span class="val">SOL ' + currentSol() + ' · ' + missionElapsedDays() + 'd elapsed</span></div>' +
+    '<div class="ov-line"><span>Scenario</span><span class="val">' + scenarioText + '</span></div>' +
+    '<div class="ov-line"><span>Viewing</span><span class="val">' + crew.name + '</span></div>';
+
+  $('ov-crew').innerHTML = V.CREW.map((c) => {
+    const st = crewOverallStatus(c);
+    return '<div class="ov-line"><span class="ov-who"><span class="dot ' + st + '"></span>' + c.name +
+      (c.id === selectedCrewId ? ' (viewing)' : '') + '</span>' +
+      '<span class="badge ' + st + '">' + statusWord(st) + '</span></div>';
+  }).join('');
+
+  const all = [];
+  V.CREW.forEach((c) => {
+    V.evaluateAlerts(c, e, frac, scenarioId).forEach((a) => all.push({ crew: c, alert: a }));
+  });
+  all.sort((a, b) => (a.alert.severity === 'red' ? 0 : 1) - (b.alert.severity === 'red' ? 0 : 1));
+  const reds = all.filter((x) => x.alert.severity === 'red').length;
+  if (!all.length) {
+    $('ov-alerts').innerHTML = '<p class="ov-quiet">All clear: no active alerts across the crew.</p>';
+  } else {
+    $('ov-alerts').innerHTML =
+      '<div class="ov-line"><span>' + all.length + ' active alert' + (all.length === 1 ? '' : 's') + '</span>' +
+      '<span class="val">' + reds + ' critical · ' + (all.length - reds) + ' watch</span></div>' +
+      all.slice(0, 3).map((x) =>
+        '<div class="ov-line"><span class="ov-who"><span class="badge ' + x.alert.severity + '">' + x.alert.severity.toUpperCase() + '</span>' + x.alert.title + '</span>' +
+        '<span class="val">' + x.crew.name.split(' ').pop() + '</span></div>').join('') +
+      (all.length > 3 ? '<div class="ov-line"><span class="ov-quiet">+ ' + (all.length - 3) + ' more in Risk &amp; Alerts</span></div>' : '');
+  }
+
+  const co2Status = recovery ? 'amber' : V.cabinStatus(cabin.co2Ppm);
+  const co2Word = recovery ? 'Recovering' : co2Status === 'green' ? 'Nominal' : co2Status === 'amber' ? 'CO2 elevated' : 'Action required';
+  $('ov-cabin').innerHTML =
+    '<div class="ov-line"><span>Cabin CO2</span><span class="val">' + cabin.co2Ppm + ' ppm</span></div>' +
+    '<div class="ov-line"><span>Status</span><span class="badge ' + co2Status + '">' + co2Word + '</span></div>' +
+    '<div class="ov-line"><span>Oxygen · pressure</span><span class="val">' + cabin.ppo2Kpa.toFixed(1) + ' kPa · ' + cabin.pressureKpa.toFixed(1) + ' kPa</span></div>';
+
+  $('ov-radiation').innerHTML =
+    '<div class="ov-line"><span>Dose rate (dose equivalent)</span><span class="val">' + effectiveDoseRate().toFixed(2) + ' mSv/day</span></div>' +
+    '<div class="ov-line"><span>Daily action level</span><span class="val">' + e.radAlertThreshold.toFixed(2) + ' mSv/day</span></div>' +
+    '<div class="ov-line"><span>' + crew.name.split(' ').pop() + ' today · cumulative</span><span class="val">' + radTodayFor(crew).toFixed(2) + ' · ' + crew.vitals.radCumulative.toFixed(1) + ' mSv</span></div>';
+
+  $('ov-risk').innerHTML = V.HAZARDS.map((h) => {
+    const risk = h.riskFn(crew, e);
+    return '<div class="ov-line"><span>' + h.name + '</span>' +
+      '<span class="badge ' + risk + '">' + statusWord(risk) + '</span></div>';
+  }).join('');
+}
+
+/* ---------- Exercise adherence panel (redesign) ----------
+   Presentation only: reads the existing deterministic session model. */
+function renderAdherence() {
+  const body = $('adherence-body');
+  if (!body) return;
+  const crew = crewById(selectedCrewId);
+  const minutes = missionDayMinutes() % 1440;
+  const adh = V.exerciseAdherenceSummary(crew, minutes);
+  const states = V.exerciseSessionStates(crew, minutes);
+  const stateWord = { scheduled: 'Scheduled', active: 'In progress', complete: 'Complete', partial: 'Partial', missed: 'Missed' };
+  body.innerHTML =
+    '<p class="adh-big"><b>' + adh.logged + ' / ' + adh.planned + ' min</b> logged in finished sessions for ' + crew.name +
+    ' (' + Math.round(adh.fraction * 100) + '% adherence) · ' + crew.vitals.exercise + ' min so far today against the 120 min target.</p>' +
+    '<ul class="adh-list">' + states.map((s) =>
+      '<li><span>' + s.session.name + '</span><span>' + s.logged + '/' + s.session.minutes + ' min · ' + stateWord[s.state] + '</span></li>').join('') + '</ul>' +
+    '<p class="adh-note">Sessions are deterministic: minutes accrue only inside a session window, from this astronaut\'s stated adherence pattern.</p>';
+}
+
+/* ---------- Floating AI assistant (redesign) ----------
+   One chatbot component, two homes: docked in the AI Assistant view, or
+   moved into the floating panel. Moving the node moves the live chat
+   state with it; no chatbot logic is duplicated. */
+let chatPanelOpen = false;
+function setChatPanel(open) {
+  const panel = $('chat-panel');
+  const section = $('chatbot-section');
+  if (!panel || !section) return;
+  chatPanelOpen = open;
+  if (open) {
+    $('chat-panel-body').appendChild(section);
+    panel.hidden = false;
+    $('chat-backdrop').hidden = false;
+    $('chat-fab').setAttribute('aria-expanded', 'true');
+    const input = $('chat-input');
+    if (input) input.focus();
+  } else {
+    const home = $('chat-home');
+    if (home && home.parentNode) home.parentNode.insertBefore(section, home.nextSibling);
+    panel.hidden = true;
+    $('chat-backdrop').hidden = true;
+    $('chat-fab').setAttribute('aria-expanded', 'false');
+    $('chat-fab').focus();
+  }
+}
+
+/* ---------- Scrollspy for the sidebar (redesign) ---------- */
+function initScrollspy() {
+  const links = Array.prototype.slice.call(document.querySelectorAll('.side-link'));
+  if (!links.length || typeof IntersectionObserver === 'undefined') return;
+  const byId = {};
+  links.forEach((l) => { byId[l.getAttribute('href').slice(1)] = l; });
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((en) => {
+      if (!en.isIntersecting) return;
+      links.forEach((l) => { l.classList.remove('active'); l.removeAttribute('aria-current'); });
+      const link = byId[en.target.id];
+      if (link) { link.classList.add('active'); link.setAttribute('aria-current', 'true'); }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+  document.querySelectorAll('.view').forEach((v) => obs.observe(v));
+}
+
+function initRedesign() {
+  const fab = $('chat-fab');
+  if (fab) {
+    fab.addEventListener('click', () => setChatPanel(!chatPanelOpen));
+    $('chat-close').addEventListener('click', () => setChatPanel(false));
+    $('chat-backdrop').addEventListener('click', () => setChatPanel(false));
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && chatPanelOpen) setChatPanel(false); });
+  }
+  const quick = $('ov-open-chat');
+  if (quick) quick.addEventListener('click', () => setChatPanel(true));
+  initScrollspy();
 }
 
 /* ---------- Init ---------- */
@@ -870,8 +1093,11 @@ function init() {
   renderHazards();
   renderCabin();
   renderTimeline();
+  renderOverview();
+  renderAdherence();
   renderSources();
   initChatbot();
+  initRedesign();
   tickClock();
   ensureCharts((ok) => { if (ok) buildCharts(); else showChartsFallback(); });
   setInterval(tickClock, 1000);

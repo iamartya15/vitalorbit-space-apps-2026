@@ -3,7 +3,7 @@
    NASA Human Research Program material (see ABOUT / sources in index.html):
    - The 5 Hazards of Human Spaceflight (NASA HRP)
    - ISS crew effective dose ~0.2-0.5 mSv/day; NASA career limit 600 mSv
-     (NASA-STD-3001, 2022)
+     effective dose (NASA-STD-3001, 2022)
    - Resting heart rate 60-100 bpm; SpO2 95-100%; sleep target 7-9 h.
    Demo crew members are fictional.
 
@@ -14,10 +14,13 @@
    this demo. Demo thresholds (daily dose action levels, the SPE x6 surge
    factor, stress cut-offs, cabin watch levels) are simulation assumptions,
    never NASA limits. Verified anchors: career limit 600 mSv is
-   NASA-STD-3001 Vol 1 §4.8.2; the Mars transit rate 1.8 mSv/day is the
-   MSL/RAD measurement (1.81 ± 0.33 mSv/day, Zeitlin et al., Science 2013);
-   the lunar surface rate 1.4 mSv/day matches the Chang'E-4 LND measurement
-   (~1,369 µSv/day, Science Advances 2020).
+   NASA-STD-3001 Vol 1 §4.8.2 (an effective dose); the Mars surface rate
+   0.64 mSv/day is the MSL/RAD measurement at Gale Crater (0.64 ± 0.12
+   mSv/day dose equivalent, Hassler et al., Science 2014). The MSL/RAD
+   cruise value (1.84 ± 0.30 mSv/day dose equivalent, Zeitlin et al.,
+   Science 2013) is a transit measurement and is not used for the surface
+   environment. The lunar surface rate 1.4 mSv/day matches the Chang'E-4
+   LND measurement (~1,369 µSv/day, Science Advances 2020).
 */
 'use strict';
 
@@ -83,16 +86,16 @@ const VITALORBIT = (() => {
       countermeasures: 'Regolith-shielded habitat time, surface-EVA dose budgeting, partial-gravity exercise, dust-exposure checks after every EVA.',
     },
     mars: {
-      id: 'mars', label: 'Mars (transit + surface)', gravity: 'Microgravity, then 3/8 g',
-      doseRate: 1.8, radAlertThreshold: 1.62, commDelay: '4–24 min one-way',
-      context: 'Mars mission: the hardest case. Months of transit radiation, then up to two years at 3/8 g, with help 4–24 light-minutes away. The crew must detect and act on health changes alone.',
-      countermeasures: 'Autonomous health monitoring (this dashboard), pre-planned medical protocols, shielded transit habitat, strict exercise and sleep discipline.',
+      id: 'mars', label: 'Mars (surface)', gravity: '3/8 g',
+      doseRate: 0.64, radAlertThreshold: 0.576, commDelay: '4–24 min one-way',
+      context: 'Martian surface: a thin atmosphere and no global magnetic field leave the crew exposed to galactic cosmic rays. MSL/RAD measured 0.64 mSv/day dose equivalent at Gale Crater (Hassler et al., Science, 2014); the higher MSL/RAD cruise value belongs to the transit phase, not the surface. At 3/8 g, with help 4–24 light-minutes away, the crew must detect and act on health changes alone.',
+      countermeasures: 'Regolith-shielded habitat time, surface-EVA dose budgeting, autonomous health monitoring (this dashboard), pre-planned medical protocols, strict exercise and sleep discipline.',
     },
   };
 
   /* ---------- Scenario simulator ----------
      Mission-control what-if scenarios layered on the live simulation.
-     'spe' multiplies the effective radiation dose rate while it is active.
+     'spe' multiplies the radiation dose rate while it is active.
      'co2' is applied to crew vitals by the app layer (falling SpO2, rising
      resting heart rate). Switching back to 'nominal' clears both. */
   const SCENARIOS = {
@@ -441,7 +444,7 @@ const VITALORBIT = (() => {
     { keys: ['radiation', 'dose', 'msv', 'rad'],
       q: 'What is my radiation dose today?',
       a: 'Check your vitals panel: it shows today\u2019s dose and your cumulative mission dose. On the ISS the effective dose is roughly 0.2–0.5 mSv per day; deep-space transit is higher. Your daily action level is shown for the current environment.',
-      learn: 'NASA\u2019s career exposure limit is 600 mSv (NASA-STD-3001).' },
+      learn: 'NASA\u2019s career exposure limit is 600 mSv effective dose (NASA-STD-3001). The dose figures in this demo are dose equivalent, a different quantity, so the app does not project a time to that limit.' },
     { keys: ['oxygen', 'spo2', 'sp o2', 'breath', 'low oxygen'],
       q: 'What if my blood oxygen (SpO2) is low?',
       a: 'First check the sensor is fitted properly, sit down and take slow deep breaths, then re-measure in 5 minutes. Below 95% is a watch level; below 94% is an alert: tell the flight surgeon.',
@@ -605,28 +608,319 @@ const VITALORBIT = (() => {
      'NASA operational practice' | 'Published measurement' |
      'Simulation assumption'. Rendered in the app under Data & resources. */
   const PARAMETER_BASIS = [
-    { param: 'Resting heart rate 60-100 bpm', basis: 'Published reference range', source: 'Standard adult clinical range' },
-    { param: 'Blood oxygen (SpO2) 95-100%', basis: 'Published reference range', source: 'Standard adult clinical range' },
-    { param: 'Sleep target 7-9 h per night', basis: 'Published reference range', source: 'General adult guidance; NASA schedules an 8.5 h sleep opportunity aboard ISS' },
-    { param: 'Exercise target 120 min/day', basis: 'NASA operational practice', source: 'ISS crew exercise runs about 2 h per day (resistive + aerobic countermeasures)' },
-    { param: 'Radiation career limit 600 mSv', basis: 'NASA requirement', source: 'NASA-STD-3001 Vol 1, section 4.8.2 (effective dose, all ages and sexes)' },
-    { param: 'ISS dose rate 0.4 mSv/day', basis: 'Published reference range', source: 'Planning value inside the published ISS effective-dose range of about 0.2-0.5 mSv/day' },
-    { param: 'Moon dose rate 1.4 mSv/day', basis: 'Published measurement', source: "Chang'E-4 Lunar Lander Neutrons and Dosimetry: about 1,369 microSv/day on the surface (Science Advances, 2020)" },
-    { param: 'Mars dose rate 1.8 mSv/day', basis: 'Published measurement', source: 'MSL Radiation Assessment Detector, Mars cruise: 1.81 +/- 0.33 mSv/day (Zeitlin et al., Science, 2013)' },
+    { param: 'Resting heart rate 60-100 bpm', basis: 'Published reference range', source: 'Standard adult clinical range (Earth clinical reference; spaceflight resting HR varies with fluid shifts and deconditioning)', ref: 'clinical-ranges' },
+    { param: 'Blood oxygen (SpO2) 95-100%', basis: 'Published reference range', source: 'Standard adult clinical range (Earth clinical reference)', ref: 'clinical-ranges' },
+    { param: 'Sleep target 7-9 h per night', basis: 'Published reference range', source: 'General adult guidance; NASA schedules an 8.5 h sleep opportunity aboard ISS', ref: 'clinical-ranges' },
+    { param: 'Exercise target 120 min/day', basis: 'NASA operational practice', source: 'ISS crew exercise runs about 2 h per day (resistive + aerobic countermeasures)', ref: 'hrp-hazards' },
+    { param: 'Radiation career limit 600 mSv (effective dose)', basis: 'NASA requirement', source: 'NASA-STD-3001 Vol 1 Rev C, section 4.8.2 [V1 4030] (career effective dose, all ages and sexes)', ref: 'nasa-std-3001' },
+    { param: 'ISS dose rate 0.4 mSv/day', basis: 'Published reference range', source: 'Planning value inside the published ISS effective-dose range of about 0.2-0.5 mSv/day', ref: 'csa-radiation' },
+    { param: 'Moon dose rate 1.4 mSv/day', basis: 'Published measurement', source: "Chang'E-4 Lunar Lander Neutrons and Dosimetry: about 1,369 microSv/day on the surface (Science Advances, 2020)", ref: 'zhang-2020' },
+    { param: 'Mars dose rate 0.64 mSv/day', basis: 'Published measurement', source: 'Mars surface dose equivalent measured by the MSL Radiation Assessment Detector at Gale Crater: 0.64 +/- 0.12 mSv/day (Hassler et al., Science, 2014). The same instrument measured 1.84 +/- 0.30 mSv/day dose equivalent during the cruise to Mars (Zeitlin et al., Science, 2013); that transit value is not used for this surface environment', ref: 'zeitlin-2013' },
     { param: 'Spacecraft transit dose rate 0.6 mSv/day', basis: 'Simulation assumption', source: 'Planning value between the LEO and lunar rates; no single published constant' },
-    { param: 'Daily dose action levels (90% of a nominal day)', basis: 'Simulation assumption', source: 'Internal demo thresholds for the dashboard, not NASA limits' },
-    { param: 'Solar Particle Event dose multiplier x6', basis: 'Simulation assumption', source: 'Event strength varies widely; NASA-STD-3001 separately requires crew protection to under 250 mSv for a design-reference SPE' },
+    { param: 'Daily dose action levels (90% of a nominal day)', basis: 'Simulation assumption', source: 'Internal demo thresholds for the dashboard, not NASA limits. The dose projection shown in the app is rate-times-time arithmetic on these rates, to the daily action level only: an estimate, not a forecast. No time-to-career-limit estimate is computed: the 600 mSv career limit is an effective dose and these rates are dose equivalent, and the two quantities cannot be divided into each other without a validated conversion' },
+    { param: 'Solar Particle Event dose multiplier x6', basis: 'Simulation assumption', source: 'Event strength varies widely; NASA-STD-3001 separately requires crew protection to under 250 mSv for a design-reference SPE', ref: 'nasa-std-3001' },
     { param: 'Per-crew exposure factors 0.9-1.35 (EVA vs shielded time)', basis: 'Simulation assumption', source: 'Models different EVA and shielding exposure across the demo crew' },
     { param: 'Stress scale cut-offs (watch above 5, elevated above 7, critical above 8.5 of 10)', basis: 'Simulation assumption', source: 'Self-reported demo scale; NASA uses validated instruments, not a single 0-10 cut-off' },
-    { param: 'Cabin baselines and CO2 watch/action levels (1,500 / 2,500 ppm)', basis: 'Simulation assumption', source: 'Demo cabin values; real ISS CO2 runs higher than terrestrial indoor levels' },
+    { param: 'Cabin baselines and CO2 watch/action levels (1,500 / 2,500 ppm)', basis: 'Simulation assumption', source: 'Demo cabin values; real ISS CO2 runs higher than terrestrial indoor levels, and flight limits are set as CO2 partial pressure in NASA-STD-3001 Vol 2, not as these demo ppm levels. Pressure (101.3 kPa), oxygen partial pressure (21.2 kPa), temperature and humidity baselines are sea-level/comfort references, not flight set points' },
   ];
+
+  /* ---------- Full source references ----------
+     Only sources actually verified against the publisher or the paper
+     itself are listed, with the parameter(s) each one supports. */
+  const REFERENCES = [
+    { id: 'nasa-std-3001', title: 'NASA-STD-3001, Volume 1, Revision C: Crew Health (Human System Standard), requirements [V1 4030] career exposure limit and [V1 4031] solar particle event protection; summarised in OCHMO Technical Brief OCHMO-TB-020 Rev G, Design for Ionizing Radiation Protection', publisher: 'NASA Office of the Chief Health and Medical Officer (OCHMO)', year: '2025 (brief, Rev G)', url: 'https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-020-radiation-protection.pdf', supports: 'Career limit 600 mSv; design-reference SPE protection under 250 mSv' },
+    { id: 'zeitlin-2013', title: 'MSL/RAD papers: Measurements of Energetic Particle Radiation in Transit to Mars on the Mars Science Laboratory (Zeitlin et al., 2013); Mars\' Surface Radiation Environment Measure with the Mars Science Laboratory\'s Radiation Assessment Detector (Hassler et al., 2014)', publisher: 'Science, AAAS', year: '2013 / 2014', url: 'https://doi.org/10.1126/science.1235989', supports: 'MSL/RAD dose-equivalent rates: Mars cruise (transit) 1.84 +/- 0.30 mSv/day (Zeitlin et al., Science 340, 2013; DOI 10.1126/science.1235989) and Mars surface at Gale Crater 0.64 +/- 0.12 mSv/day (Hassler et al., Science 343, 2014; DOI 10.1126/science.1244797)' },
+    { id: 'zhang-2020', title: 'First measurements of the radiation dose on the lunar surface', publisher: 'Science Advances 6 (39), eaaz1334, AAAS', year: '2020', url: 'https://www.science.org/doi/full/10.1126/sciadv.aaz1334', supports: 'Lunar surface dose equivalent about 1,369 microSv/day (Chang\'E-4 LND)' },
+    { id: 'hrp-hazards', title: '5 Hazards of Human Spaceflight; Risks of Human Spaceflight; Ongoing HRP Research in Space', publisher: 'NASA Human Research Program', year: 'accessed 2026', url: 'https://www.nasa.gov/hrp/hazards/', supports: 'Five-hazards framework, hazard effects, ISS countermeasure practice (about 2 h/day exercise, 8.5 h sleep opportunity)' },
+    { id: 'csa-radiation', title: 'Monitoring Radiation for Astronaut Health', publisher: 'Canadian Space Agency', year: '2026', url: 'https://www.asc-csa.gc.ca/eng/news/articles/2026/2026-02-26-monitoring-radiation-astronaut-health.asp', supports: 'ISS radiation context for the published effective-dose planning range' },
+    { id: 'clinical-ranges', title: 'Standard adult clinical reference ranges: resting heart rate 60-100 bpm, SpO2 95-100%, adult sleep 7-9 h', publisher: 'Clinical reference consensus (Earth-based; e.g. AHA resting heart-rate guidance, CDC adult sleep guidance)', year: 'accessed 2026', url: '', supports: 'Heart rate, SpO2 and sleep reference ranges. These are Earth clinical references, not spaceflight limits' },
+    { id: 'osdr', title: 'NASA Open Science Data Repository (OSDR) and NASA Life Sciences Portal (NLSP)', publisher: 'NASA', year: 'accessed 2026', url: 'https://osdr.nasa.gov', supports: 'Background HRP data portals consulted for reference ranges and findings; no dataset is integrated into this demo (see README, simulation model)' },
+  ];
+
+  /* ---------- Data provenance ----------
+     Every value the dashboard shows carries one of these tags, so a reader
+     can tell at a glance what kind of number it is. Nothing on this page is
+     a real measurement: SIMULATED values are generated demo readings,
+     DERIVED values are computed from simulated inputs by a stated rule, and
+     ESTIMATE values are arithmetic extrapolations of a simulated rate. */
+  const PROVENANCE = {
+    simulated: { tag: 'SIMULATED', note: 'Generated demo value, not a measurement' },
+    derived: { tag: 'DERIVED', note: 'Computed from simulated inputs by the stated rule' },
+    estimate: { tag: 'ESTIMATE', note: 'Extrapolated from a simulated rate, not a forecast' },
+  };
+
+  /* ---------- Radiation dose projection (transparent estimate) ----------
+     Pure arithmetic on the simulated dose rate: at the CURRENT rate, how
+     long until today's dose reaches the daily action level. That is the
+     only time projection offered, because its input, threshold and output
+     are one and the same quantity (simulated dose equivalent).
+     NO time-to-career-limit estimate is computed: the 600 mSv career
+     reference (NASA-STD-3001) is an EFFECTIVE dose, while every rate
+     simulated here is a DOSE EQUIVALENT rate, and dividing one quantity
+     by the other is not valid without a validated conversion model,
+     which this demo does not apply. careerEstimate therefore reports
+     'unavailable' with the reason, and the UI and chatbot say so plainly.
+     The daily estimate is an extrapolation of demo data, labelled
+     ESTIMATE everywhere it appears. It is not a forecast: real dose
+     rates vary with orbit, shielding, solar activity and EVA schedule. */
+  const CAREER_ESTIMATE_NOTE = 'No time estimate is available for the 600 mSv career reference: that NASA-STD-3001 limit is an effective dose, while the dose rates simulated here are dose equivalent. Dividing the remaining effective-dose margin by a dose-equivalent rate would mix two different quantities, so no career projection is shown.';
+  function doseProjection(crew, env, scenario, missionDayFraction) {
+    const mult = scenario && SCENARIOS[scenario] ? SCENARIOS[scenario].doseMultiplier : 1;
+    const ratePerDay = env.doseRate * mult * (crew.radFactor || 1);
+    const todaySoFar = ratePerDay * missionDayFraction;
+    const remainingToday = env.radAlertThreshold - todaySoFar;
+    const hoursToActionLevel = ratePerDay > 0 && remainingToday > 0
+      ? (remainingToday / ratePerDay) * 24 : null; // null = already reached (or no rate)
+    return {
+      ratePerDay, todaySoFar, actionLevel: env.radAlertThreshold,
+      hoursToActionLevel,
+      careerEstimate: 'unavailable',
+      careerNote: CAREER_ESTIMATE_NOTE,
+      provenance: 'estimate',
+    };
+  }
+
+  /* ---------- 7-day trend directions (transparent estimate) ----------
+     Direction only: compares the mean of the first three days with the
+     mean of the last three days of the seeded 7-day history. A series is
+     'steady' when the difference is inside a small dead-band. No model is
+     fitted and no accuracy is claimed; this describes the demo history,
+     it does not predict tomorrow. */
+  function seriesDirection(values, deadBand) {
+    const n = values.length;
+    const first = values.slice(0, 3).reduce((a, b) => a + b, 0) / 3;
+    const last = values.slice(n - 3).reduce((a, b) => a + b, 0) / 3;
+    const delta = +(last - first).toFixed(2);
+    if (delta > deadBand) return { direction: 'rising', delta };
+    if (delta < -deadBand) return { direction: 'falling', delta };
+    return { direction: 'steady', delta };
+  }
+
+  function trendDirections(crew) {
+    const hr = seriesDirection(crew.history.hr, 1);
+    const sleep = seriesDirection(crew.history.sleep, 0.2);
+    const spo2 = seriesDirection(crew.history.spo2, 0.4);
+    // Fatigue direction combines the two fatigue inputs that have a
+    // history: worsening = sleep falling while heart rate rises.
+    let fatigue = 'steady';
+    if (sleep.direction === 'falling' && hr.direction === 'rising') fatigue = 'worsening';
+    else if (sleep.direction === 'rising' && hr.direction === 'falling') fatigue = 'improving';
+    else if (sleep.direction === 'falling' || hr.direction === 'rising') fatigue = 'mixed, leaning worse';
+    else if (sleep.direction === 'rising' || hr.direction === 'falling') fatigue = 'mixed, leaning better';
+    // Exercise adherence: fraction of planned minutes actually logged in
+    // the sessions that have already ended today (deterministic model).
+    return { hr, sleep, spo2, fatigue };
+  }
+
+  function exerciseAdherenceSummary(crew, minutesOfDay) {
+    const states = exerciseSessionStates(crew, minutesOfDay);
+    const ended = states.filter((s) => s.state === 'complete' || s.state === 'partial' || s.state === 'missed');
+    const planned = ended.reduce((a, s) => a + s.session.minutes, 0);
+    const logged = ended.reduce((a, s) => a + s.logged, 0);
+    return { endedSessions: ended.length, planned, logged, fraction: planned ? logged / planned : 1 };
+  }
+
+  /* ---------- Explainable hazard detail ----------
+     For each hazard: the exact inputs used, the rule in plain words, the
+     threshold state for THIS astronaut, the evidence basis, and the
+     countermeasure information the dashboard tracks. No weighted scores:
+     every risk is the direct output of the stated rule on the stated
+     inputs, and the crew worst case stays a separate line in the UI. */
+  function hazardExplain(hazard, crew, env) {
+    const v = crew.vitals;
+    const risk = hazard.riskFn(crew, env);
+    const head = { hazard: hazard.name, astronaut: crew.name, risk };
+    const word = (s) => (s === 'red' ? 'Alert' : s === 'amber' ? 'Watch' : 'In range');
+    switch (hazard.id) {
+      case 'radiation': {
+        const today = v.radDayToday != null ? v.radDayToday : env.doseRate * 0.7 * (crew.radFactor || 1);
+        return { ...head,
+          inputs: ['Radiation dose today for ' + crew.name + ': ' + today.toFixed(2) + ' mSv (dose equivalent, simulated)', 'Environment dose rate: ' + env.doseRate.toFixed(2) + ' mSv/day dose equivalent (' + env.label + ')', 'Exposure factor for this astronaut: ' + (crew.radFactor || 1)],
+          rule: 'Watch at 80% of the daily action level (' + env.radAlertThreshold.toFixed(2) + ' mSv), Alert at or above it. This is the same rule as the radiation vital tile, so the two can never disagree.',
+          status: 'Dose today is ' + Math.round((today / env.radAlertThreshold) * 100) + '% of the action level, so this hazard is ' + word(risk) + ' for ' + crew.name + '.',
+          evidence: 'Daily action levels are simulation assumptions (demo thresholds, not NASA limits). The environment dose rates rest on published measurements and ranges (see Methodology): MSL/RAD for the Mars surface (Hassler et al. 2014; the same instrument\'s cruise value, Zeitlin et al. 2013, is a transit measurement), Chang\'E-4 LND for the Moon, the published ISS effective-dose range for low Earth orbit. Every simulated dose figure in this app is dose equivalent; the 600 mSv career limit is an effective dose and a NASA requirement (NASA-STD-3001 Vol 1 Rev C, section 4.8.2), so no time-to-career-limit estimate is shown.',
+          mitigation: hazard.countermeasure };
+      }
+      case 'isolation': {
+        return { ...head,
+          inputs: ['Stress score: ' + v.stress.toFixed(1) + ' / 10', 'Sleep last night: ' + v.sleep.toFixed(1) + ' h'],
+          rule: 'Alert when stress is above 7 or sleep under 5.5 h; Watch when stress is above 5 or sleep under 6.5 h. Only this astronaut\'s own values are used, never a crew average.',
+          status: 'Stress ' + v.stress.toFixed(1) + ' / 10 and sleep ' + v.sleep.toFixed(1) + ' h put this hazard at ' + word(risk) + ' for ' + crew.name + '.',
+          evidence: 'Isolation and confinement is one of the five hazards in the NASA Human Research Program framework; sleep loss and workload are its tracked drivers here. The numeric cut-offs are simulation assumptions on a self-reported demo scale; NASA uses validated instruments instead.',
+          mitigation: hazard.countermeasure };
+      }
+      case 'distance': {
+        return { ...head,
+          inputs: ['Environment: ' + env.label, 'Comms delay: ' + env.commDelay],
+          rule: 'Watch in the Mars environment, where one-way light time is 4 to 24 minutes and real-time ground help is impossible; In range elsewhere. This hazard depends on the environment, not on a vital sign.',
+          status: 'Current environment is ' + env.label + ' (' + env.commDelay + '), so this hazard is ' + word(risk) + '.',
+          evidence: 'Distance from Earth is one of the five HRP hazards. The delay figures are the environment context values shown in the rail panel.',
+          mitigation: hazard.countermeasure };
+      }
+      case 'gravity': {
+        return { ...head,
+          inputs: ['Exercise logged today: ' + v.exercise + ' min', 'Daily target: ' + EXERCISE_TARGET_MIN + ' min'],
+          rule: 'Alert under 30 min logged, Watch under 60 min. Exercise minutes come from the session model, so this agrees with the vitals tile and the timeline.',
+          status: v.exercise + ' min logged puts this hazard at ' + word(risk) + ' for ' + crew.name + '.',
+          evidence: 'Gravity fields is one of the five HRP hazards; exercise is its main tracked countermeasure. The 120 min/day target follows ISS operational practice (about 2 h/day). The 30/60 min cut-offs are simulation assumptions for this demo.',
+          mitigation: hazard.countermeasure };
+      }
+      case 'hostile': {
+        return { ...head,
+          inputs: ['Blood oxygen (SpO2): ' + v.spo2 + '%'],
+          rule: 'Alert below 94%, Watch below 95%, matching the SpO2 vital tile exactly. Only this astronaut\'s own SpO2 is used.',
+          status: 'SpO2 ' + v.spo2 + '% puts this hazard at ' + word(risk) + ' for ' + crew.name + '.',
+          evidence: 'Hostile/closed environments is one of the five HRP hazards; the cabin panel tracks the air side of it (CO2, pressure, oxygen) while this card tracks the crew-side oxygen signal. SpO2 95-100% is a published Earth clinical reference range.',
+          mitigation: hazard.countermeasure };
+      }
+      default:
+        return { ...head, inputs: hazard.vitals, rule: 'See the countermeasure tracked for this hazard.', status: 'Risk: ' + word(risk) + ' for ' + crew.name + '.', evidence: 'NASA Human Research Program five-hazards framework.', mitigation: hazard.countermeasure };
+    }
+  }
+
+  /* ---------- Alert decision support (guidance) ----------
+     Every alert carries informational guidance in a fixed shape: trigger,
+     evidence (the alert detail, from live values), suggested action (the
+     alert action), the basis label, and the limitation. Guidance is
+     displayed only; showing it never changes any simulated value, and it
+     is never a NASA flight procedure. */
+  const GUIDANCE_LIMITATION = 'This guidance works on simulated demo data for a fictional crew member. It supports awareness in this prototype only and is not a medical recommendation.';
+  const ALERT_GUIDANCE = {
+    'COMPOUND-FATIGUE': { basis: 'Simulation guidance', trigger: 'Sleep under 6 h AND stress above 7/10 AND resting heart rate above 100 bpm at the same time' },
+    'HR-HIGH': { basis: 'Simulation guidance', trigger: 'Resting heart rate above 110 bpm' },
+    'HR-ELEVATED': { basis: 'Simulation guidance', trigger: 'Resting heart rate above 100 bpm for at least 2 consecutive readings' },
+    'SPO2-LOW': { basis: 'Simulation guidance', trigger: 'SpO2 below 94%' },
+    'SPO2-WATCH': { basis: 'Simulation guidance', trigger: 'SpO2 below 95%' },
+    'SLEEP-CRITICAL': { basis: 'Simulation guidance', trigger: 'Sleep under 5 h last night' },
+    'SLEEP-SHORT': { basis: 'Simulation guidance', trigger: 'Sleep under 6 h last night' },
+    'STRESS-HIGH': { basis: 'Simulation guidance', trigger: 'Stress score above 8.5 / 10' },
+    'STRESS-ELEVATED': { basis: 'Simulation guidance', trigger: 'Stress score above 7 / 10' },
+    'EXERCISE-BEHIND': { basis: 'Simulation guidance', trigger: 'Past 60% of the mission day with under 60 exercise minutes logged' },
+    'RAD-DAILY': { basis: 'Operationally referenced', trigger: 'Simulated daily dose at or above the environment action level' },
+    'RAD-WATCH': { basis: 'Operationally referenced', trigger: 'Simulated daily dose at or above 80% of the environment action level' },
+    'SPE-EVENT': { basis: 'Operationally referenced', trigger: 'Solar Particle Event scenario active (simulated dose rate multiplied)' },
+    'CO2-DRIFT': { basis: 'Operationally referenced', trigger: 'CO2 Scrubber Drift scenario active (simulated cabin CO2 climbing)' },
+  };
+
+  function alertGuidance(alert) {
+    const g = ALERT_GUIDANCE[alert.code] || { basis: 'Simulation guidance', trigger: 'Rule threshold crossed' };
+    return { trigger: g.trigger, evidence: alert.detail, action: alert.action, basis: g.basis, limitation: GUIDANCE_LIMITATION };
+  }
+
+  /* ---------- Chatbot: explainable, state-aware answers ----------
+     Third layer, tried FIRST in the app: questions asking WHY something is
+     flagged, for trend summaries, scenario effects, hazard explanations,
+     dose projections, or about data this dashboard does not hold. Every
+     explanation is built from the live state passed in ctx, and carries
+     its inputs, the rule used, the data provenance and a limitation.
+     Returns null when no explain-intent matches, so the caller falls
+     through to the live-state and Q&A-bank layers. ctx = { crew, env,
+     scenario, frac, radToday, cabin, minutesOfDay } */
+  function answerExplain(question, ctx) {
+    const q = ' ' + question.toLowerCase().trim() + ' ';
+    const { crew, env, scenario, frac, radToday, cabin } = ctx;
+    const v = crew.vitals;
+    const prov = 'Data provenance: simulated demo data for a fictional crew member.';
+    const limit = 'Limitation: this explains dashboard rules on simulated data. It is not a diagnosis and VitalOrbit is not a NASA medical system.';
+    const named = CREW.find((c) => q.includes(c.id) || q.includes(c.name.toLowerCase().split(' ').pop()));
+    const who = named || crew;
+    const wv = who.vitals;
+    const whoRad = who === crew ? radToday : env.doseRate * (SCENARIOS[scenario] ? SCENARIOS[scenario].doseMultiplier : 1) * frac * (who.radFactor || 1);
+
+    // Data the dashboard does not hold: say so plainly instead of guessing.
+    if (/\b(blood pressure|bp|systolic|diastolic|blood sugar|glucose|ecg|ekg|body temperature|weight|body mass|medication|medicine|dose of|prescri|diagnos|cholesterol|heart attack|bone density scan|dexa)\b/.test(q)) {
+      return { q: null,
+        a: 'I cannot answer that from the data this dashboard holds. VitalOrbit tracks only heart rate, blood oxygen (SpO2), sleep, a self-reported stress score, exercise minutes, radiation dose and cabin air for its demo crew. It holds no blood pressure, blood, ECG, medication or diagnostic data, and it never diagnoses or prescribes: for anything medical, the flight surgeon is the right contact.',
+        learn: prov + ' ' + limit };
+    }
+
+    // Hazard explanations. Matched strictly on the hazard id or distinctive
+    // name, so ordinary questions containing the word "space" or "risk" are
+    // not hijacked. Runs before the why-alert branch: "why is the radiation
+    // hazard a risk?" is a hazard question, not an alert question.
+    const hzMatch = HAZARDS.find((h) => q.includes(h.id) || q.includes(h.name.toLowerCase()) ||
+      (h.id === 'hostile' && /\bclosed environment/.test(q)) ||
+      (h.id === 'distance' && /\bdistance from earth/.test(q)));
+    if (hzMatch && /\b(hazard|risk|why|explain)\b/.test(q)) {
+      const ex = hazardExplain(hzMatch, who, env);
+      return { q: null,
+        a: ex.hazard + ' for ' + who.name + ': ' + ex.status + ' Rule: ' + ex.rule + ' Inputs: ' + ex.inputs.join('; ') + '.',
+        learn: 'Evidence basis: ' + ex.evidence + ' ' + prov + ' ' + limit };
+    }
+
+    // Why is this astronaut flagged / explain the alert.
+    if ((/\bwhy\b/.test(q) && /\b(alert|flag|warn|red|amber|attention|risk)/.test(q)) ||
+        (/\balert/.test(q) && /\b(explain|reason|mean)\b/.test(q)) ||
+        /\b(compound|fatigue alert)\b/.test(q)) {
+      const alerts = evaluateAlerts(who, env, frac, scenario);
+      if (!alerts.length) {
+        return { q: null,
+          a: who.name + ' has no active alert right now. Every tracked value is inside its rule range: heart rate ' + wv.hr + ' bpm (rule range 60 to 100), SpO2 ' + wv.spo2 + '% (95 to 100), sleep ' + wv.sleep.toFixed(1) + ' h (target 7 to 9), stress ' + wv.stress.toFixed(1) + ' / 10 (watch above 5), exercise ' + wv.exercise + ' min, and radiation ' + whoRad.toFixed(2) + ' mSv today against a ' + env.radAlertThreshold.toFixed(2) + ' mSv action level.',
+          learn: prov + ' ' + limit };
+      }
+      const top = alerts[0];
+      const lines = alerts.map((a) => {
+        const g = alertGuidance(a);
+        return a.title + ' (' + a.severity + '): trigger: ' + g.trigger + '. Evidence: ' + a.detail;
+      });
+      let extra = '';
+      const compound = alerts.find((a) => a.code === 'COMPOUND-FATIGUE');
+      if (compound) {
+        extra = ' The compound alert fires because all three contributors cross together: sleep ' + wv.sleep.toFixed(1) + ' h (rule: under 6 h), stress ' + wv.stress.toFixed(1) + ' / 10 (rule: above 7), resting heart rate ' + wv.hr + ' bpm (rule: above 100). While it is active it replaces the three separate warnings, so the problem is shown once, whole.';
+      }
+      return { q: null,
+        a: who.name + ' currently has ' + alerts.length + ' active alert' + (alerts.length > 1 ? 's' : '') + '. ' + lines.join(' ') + extra,
+        learn: prov + ' Rules are the dashboard alert rules; thresholds classed as simulation assumptions are labelled in the Methodology section. ' + limit };
+    }
+
+    // 7-day trend summary for one astronaut.
+    if (/\b(trend|trends|pattern|last 7 days|7-day|7 day|past week|over the week|getting worse|getting better|improving|declining)\b/.test(q)) {
+      const t = trendDirections(who);
+      const adh = exerciseAdherenceSummary(who, ctx.minutesOfDay);
+      return { q: null,
+        a: 'Seven-day trend for ' + who.name + ' (comparing the first three days with the last three): heart rate is ' + t.hr.direction + ' (' + who.history.hr[0] + ' to ' + who.history.hr[6] + ' bpm), sleep is ' + t.sleep.direction + ' (' + who.history.sleep[0].toFixed(1) + ' to ' + who.history.sleep[6].toFixed(1) + ' h), SpO2 is ' + t.spo2.direction + '. Overall fatigue direction: ' + t.fatigue + '. Exercise adherence so far today: ' + adh.logged + ' of ' + adh.planned + ' planned minutes in finished sessions.',
+        learn: prov + ' Method: direction only, from means of the first vs last three days of the seeded history. This describes the demo history; it is an estimate of direction, not a prediction. ' + limit };
+    }
+
+    // Scenario effects.
+    if (/\b(scenario|solar particle|solar storm|spe|co2|scrubber|drift)\b/.test(q)) {
+      if (scenario === 'spe') {
+        return { q: null,
+          a: 'The Solar Particle Event scenario is active. It multiplies the simulated dose rate by 6: here that is ' + (env.doseRate * 6).toFixed(1) + ' mSv/day before each astronaut\'s exposure factor, so ' + who.name + ' is at ' + whoRad.toFixed(2) + ' mSv today against a ' + env.radAlertThreshold.toFixed(2) + ' mSv action level. Vitals are not directly changed by this scenario; radiation alerts and the radiation hazard respond to it.',
+          learn: prov + ' The x6 multiplier is a simulation assumption; real event strength varies widely. NASA-STD-3001 requires protection to under 250 mSv for a design-reference SPE. ' + limit };
+      }
+      if (scenario === 'co2') {
+        return { q: null,
+          a: 'The CO2 Scrubber Drift scenario is active. Cabin CO2 is currently ' + Math.round(cabin.co2Ppm) + ' ppm (demo watch level 1,500 ppm, action level 2,500 ppm) and climbing while the scenario runs; crew SpO2 drifts down and resting heart rate drifts up in the simulation. Leaving the scenario starts a labelled recovery that returns vitals and cabin CO2 to the exact pre-scenario values over about 30 seconds.',
+          learn: prov + ' Cabin levels are simulation assumptions; real ISS CO2 runs higher than this demo baseline. ' + limit };
+      }
+      return { q: null,
+        a: 'No scenario is active (Nominal Orbit). The Scenario Simulator can apply a Solar Particle Event (simulated dose rate multiplied by 6) or a CO2 Scrubber Drift (cabin CO2 climbs, crew SpO2 falls and resting heart rate rises). Switching back to Nominal after a CO2 drift runs a labelled, deterministic recovery to the pre-scenario values.',
+        learn: prov + ' ' + limit };
+    }
+
+    // Dose projection.
+    if (/\b(project|forecast|how long|reach|until|career)\b/.test(q) && /\b(dose|radiation|msv|action level)\b/.test(q)) {
+      const p = doseProjection(who, env, scenario, frac);
+      const hrs = p.hoursToActionLevel == null
+        ? 'has already reached the ' + p.actionLevel.toFixed(2) + ' mSv action level'
+        : 'reaches the ' + p.actionLevel.toFixed(2) + ' mSv action level in about ' + p.hoursToActionLevel.toFixed(1) + ' h at the current simulated rate';
+      return { q: null,
+        a: 'Estimate for ' + who.name + ': at the current simulated rate of ' + p.ratePerDay.toFixed(2) + ' mSv/day (dose equivalent), today\'s dose (' + p.todaySoFar.toFixed(2) + ' mSv) ' + hrs + '. ' + p.careerNote,
+        learn: 'ESTIMATE: simple rate-times-time extrapolation of simulated data, shown with its method. Real dose rates vary with orbit, shielding, solar activity and EVA schedule, so this is not a forecast. The action level is a demo threshold; the career reference is not projected, for the reason stated above. ' + limit };
+    }
+
+    return null;
+  }
 
   return {
     RANGES, ENVIRONMENTS, SCENARIOS, CREW, DAYS, HAZARDS, TIMELINE,
-    CHATBOT_QA, SOURCES, PARAMETER_BASIS,
+    CHATBOT_QA, SOURCES, PARAMETER_BASIS, REFERENCES, PROVENANCE,
     EXERCISE_TARGET_MIN, EXERCISE_SESSIONS, CABIN,
     vitalStatus, worstStatus, evaluateAlerts, answerChatbot, answerLiveState,
     sessionProgress, exerciseAt, exerciseSessionStates, cabinStatus,
+    doseProjection, trendDirections, exerciseAdherenceSummary,
+    hazardExplain, alertGuidance, answerExplain,
   };
 })();
 
