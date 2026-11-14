@@ -13,10 +13,10 @@
 <header class="topbar">
   <div class="topbar-inner">
     <div class="brand">
-      <h1>Vital<span class="orbit">Orbit</span> · Astronaut Health Command Dashboard</h1>
-      <p class="subtitle">Team VitalOrbit India · NASA Space Apps Challenge 2026 · Challenge: Create Health Monitoring Software for Astronauts on Space Missions</p>
+      <h1>Vital<span class="orbit">Orbit</span><span class="brand-suffix"> · Astronaut Health Command Dashboard</span></h1>
       <span class="sim-badge">SIMULATED TELEMETRY</span>
     </div>
+    <p class="subtitle">Team VitalOrbit India · NASA Space Apps Challenge 2026 · Challenge: Create Health Monitoring Software for Astronauts on Space Missions</p>
     <div class="clockbox">
       <div class="label">Mission elapsed time</div>
       <div class="clock" id="mission-clock">SOL 142 · 141d 16:45:00</div>
@@ -24,90 +24,100 @@
       <span class="live-pill"><span class="live-dot"></span>LIVE</span>
     </div>
   </div>
-  <div class="env-switcher">
-    <span class="label">Environment</span>
-    <div class="env-buttons" id="env-buttons" role="group" aria-label="Environment selector"></div>
-  </div>
-  <div class="env-switcher scenario-switcher">
-    <span class="label">Scenario Simulator · what-if controls</span>
-    <div class="env-buttons" id="scenario-buttons" role="group" aria-label="Scenario simulator"></div>
-  </div>
 </header>
 
 <main>
-  <!-- Environment context -->
-  <section class="panel" id="env-panel" aria-label="Environment context">
-    <div class="section-head">
-      <h2 id="env-title">ISS (low Earth orbit)</h2>
-      <span class="hint" id="env-gravity"></span>
+  <!-- Mission controls: environment + scenario simulator -->
+  <div class="control-strip">
+    <div class="control-group">
+      <span class="control-label" id="env-label">Environment</span>
+      <div class="env-buttons" id="env-buttons" role="group" aria-labelledby="env-label"></div>
     </div>
-    <p id="env-context"></p>
-    <p><b>Countermeasures tracked:</b> <span id="env-countermeasures"></span></p>
-    <p class="hint" style="color:var(--muted);font-size:0.85rem;">Radiation dose rate (planning value): <b id="env-dose-rate" style="color:var(--text);"></b> · Daily dose action level: <b id="env-dose-budget" style="color:var(--text);"></b></p>
-  </section>
+    <div class="control-group">
+      <span class="control-label" id="scenario-label">Scenario Simulator · what-if controls</span>
+      <div class="env-buttons" id="scenario-buttons" role="group" aria-labelledby="scenario-label"></div>
+    </div>
+  </div>
 
-  <!-- Crew overview -->
-  <section class="panel" aria-label="Crew overview">
-    <div class="section-head">
-      <h2>Crew Overview</h2>
-      <span class="hint">Select a crew member to inspect their vitals, trends and alerts.</span>
-    </div>
-    <div class="crew-grid" id="crew-grid"></div>
-  </section>
+  <div class="console-grid">
+    <div class="zone-rail">
+      <!-- Crew overview -->
+      <section class="panel" aria-label="Crew overview">
+        <div class="section-head">
+          <h2>Crew Overview</h2>
+          <span class="hint">Select a crew member to inspect their vitals, trends and alerts.</span>
+        </div>
+        <div class="crew-grid" id="crew-grid"></div>
+      </section>
 
-  <!-- Vitals detail -->
-  <section class="panel" aria-label="Vitals detail">
-    <div class="vitals-head">
-      <span class="who" id="detail-name">—</span>
-      <span id="detail-status"></span>
-      <span class="updated">Last updated: <span id="last-updated">—</span> · updates every 3 s</span>
+      <!-- Environment context -->
+      <section class="panel" id="env-panel" aria-label="Environment context">
+        <div class="section-head">
+          <h2 id="env-title">ISS (low Earth orbit)</h2>
+          <span class="hint" id="env-gravity"></span>
+        </div>
+        <p id="env-context"></p>
+        <p><b>Countermeasures tracked:</b> <span id="env-countermeasures"></span></p>
+        <p class="dose-line">Radiation dose rate (planning value): <b id="env-dose-rate"></b> · Daily dose action level: <b id="env-dose-budget"></b></p>
+      </section>
     </div>
-    <div class="vital-grid" id="vital-grid"></div>
-    <p class="crew-note" id="crew-note"></p>
-  </section>
 
-  <!-- Trend charts -->
-  <section class="panel" aria-label="Trend charts">
-    <div class="section-head">
-      <h2>7-Day Trends</h2>
-      <span class="hint" id="charts-hint">Green band = safe range. The final point is today’s live value.</span>
-    </div>
-    <div class="chart-grid">
-      <div class="chart-box">
-        <h3>Heart rate (bpm)</h3>
-        <p class="chart-note">Safe range 60–100 bpm</p>
-        <canvas id="chart-hr" aria-label="7-day heart rate chart"></canvas>
-      </div>
-      <div class="chart-box">
-        <h3>Blood oxygen SpO2 (%)</h3>
-        <p class="chart-note">Safe range 95–100%</p>
-        <canvas id="chart-spo2" aria-label="7-day blood oxygen chart"></canvas>
-      </div>
-      <div class="chart-box">
-        <h3>Sleep (hours / night)</h3>
-        <p class="chart-note">Target 7–9 h</p>
-        <canvas id="chart-sleep" aria-label="7-day sleep chart"></canvas>
-      </div>
-      <div class="chart-box">
-        <h3>Radiation dose (mSv / day)</h3>
-        <p class="chart-note" id="rad-chart-note">Daily dose vs environment action level</p>
-        <canvas id="chart-rad" aria-label="7-day radiation dose chart"></canvas>
-      </div>
-    </div>
-  </section>
+    <div class="zone-main">
+      <!-- Vitals detail -->
+      <section class="panel" aria-label="Vitals detail">
+        <div class="vitals-head">
+          <span class="who" id="detail-name">—</span>
+          <span id="detail-status"></span>
+          <span class="updated">Last updated: <span id="last-updated">—</span> · updates every 3 s</span>
+        </div>
+        <div class="vital-grid" id="vital-grid"></div>
+        <p class="crew-note" id="crew-note"></p>
+      </section>
 
-  <!-- Alerts -->
-  <section class="panel" aria-label="Alerts">
-    <div class="section-head">
-      <h2>Active Alerts</h2>
-      <span class="hint">Rule-based alert engine: thresholds are evaluated on every reading.</span>
+      <!-- Trend charts -->
+      <section class="panel" aria-label="Trend charts">
+        <div class="section-head">
+          <h2>7-Day Trends</h2>
+          <span class="hint" id="charts-hint">Green band = safe range. The final point is today’s live value.</span>
+        </div>
+        <div class="chart-grid">
+          <div class="chart-box">
+            <h3>Heart rate (bpm)</h3>
+            <p class="chart-note">Safe range 60–100 bpm</p>
+            <canvas id="chart-hr" aria-label="7-day heart rate chart"></canvas>
+          </div>
+          <div class="chart-box">
+            <h3>Blood oxygen SpO2 (%)</h3>
+            <p class="chart-note">Safe range 95–100%</p>
+            <canvas id="chart-spo2" aria-label="7-day blood oxygen chart"></canvas>
+          </div>
+          <div class="chart-box">
+            <h3>Sleep (hours / night)</h3>
+            <p class="chart-note">Target 7–9 h</p>
+            <canvas id="chart-sleep" aria-label="7-day sleep chart"></canvas>
+          </div>
+          <div class="chart-box">
+            <h3>Radiation dose (mSv / day)</h3>
+            <p class="chart-note" id="rad-chart-note">Daily dose vs environment action level</p>
+            <canvas id="chart-rad" aria-label="7-day radiation dose chart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Alerts -->
+      <section class="panel" aria-label="Alerts">
+        <div class="section-head">
+          <h2>Active Alerts</h2>
+          <span class="hint">Rule-based alert engine: thresholds are evaluated on every reading.</span>
+        </div>
+        <div id="alerts-list"></div>
+        <div class="alert-log">
+          <h3>Alert log</h3>
+          <ul id="alert-log"></ul>
+        </div>
+      </section>
     </div>
-    <div id="alerts-list"></div>
-    <div class="alert-log">
-      <h3>Alert log</h3>
-      <ul id="alert-log"></ul>
-    </div>
-  </section>
+  </div>
 
   <!-- 5 Hazards -->
   <section class="panel" aria-label="Five hazards of human spaceflight">
@@ -154,7 +164,7 @@
       <div>
         <h3>Data &amp; resources used</h3>
         <ul id="sources-list"></ul>
-        <p style="font-size:0.88rem;color:var(--muted);">Reference ranges used: resting heart rate 60–100 bpm; SpO2 95–100%; sleep target 7–9 h; ISS crew effective dose ~0.2–0.5 mSv/day; NASA career radiation limit 600 mSv (NASA-STD-3001, 2022).</p>
+        <p class="ref-ranges">Reference ranges used: resting heart rate 60–100 bpm; SpO2 95–100%; sleep target 7–9 h; ISS crew effective dose ~0.2–0.5 mSv/day; NASA career radiation limit 600 mSv (NASA-STD-3001, 2022).</p>
       </div>
     </div>
   </section>
