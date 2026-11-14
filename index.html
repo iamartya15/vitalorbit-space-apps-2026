@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VitalOrbit — Astronaut Health Command Dashboard</title>
+<meta name="description" content="VitalOrbit: a colour-first astronaut health monitoring dashboard for the NASA Space Apps Challenge 2026. Simulated data, grounded in NASA Human Research Program reference ranges.">
+<link rel="stylesheet" href="styles.css">
+<script src="vendor/chart.umd.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>Vital<span class="orbit">Orbit</span> — Astronaut Health Command Dashboard</h1>
+      <p class="subtitle">Team VitalOrbit India · NASA Space Apps Challenge 2026 · Challenge: Create Health Monitoring Software for Astronauts on Space Missions</p>
+      <span class="sim-badge">SIMULATED DATA — DEMO CREW, NOT REAL ASTRONAUTS</span>
+    </div>
+    <div class="clockbox">
+      <div class="label">Mission elapsed time</div>
+      <div class="clock" id="mission-clock">SOL 142 · 141d 16:45:00</div>
+      <div class="sub" id="env-line">Environment: ISS (low Earth orbit) · Gravity: Microgravity · Comms: Near-real-time</div>
+      <span class="live-pill"><span class="live-dot"></span>LIVE — SIMULATED FEED</span>
+    </div>
+  </div>
+  <div class="env-switcher">
+    <span class="label">Environment</span>
+    <div class="env-buttons" id="env-buttons" role="group" aria-label="Environment selector"></div>
+  </div>
+</header>
+
+<main>
+  <!-- Environment context -->
+  <section class="panel" id="env-panel" aria-label="Environment context">
+    <div class="section-head">
+      <h2 id="env-title">ISS (low Earth orbit)</h2>
+      <span class="hint" id="env-gravity"></span>
+    </div>
+    <p id="env-context"></p>
+    <p><b>Countermeasures tracked:</b> <span id="env-countermeasures"></span></p>
+    <p class="hint" style="color:var(--muted);font-size:0.85rem;">Radiation dose rate (simulated planning value): <b id="env-dose-rate" style="color:var(--text);"></b> · Daily dose action level: <b id="env-dose-budget" style="color:var(--text);"></b></p>
+  </section>
+
+  <!-- Crew overview -->
+  <section class="panel" aria-label="Crew overview">
+    <div class="section-head">
+      <h2>Crew Overview</h2>
+      <span class="hint">Demo crew — fictional astronauts. Select a crew member to inspect their vitals, trends and alerts.</span>
+    </div>
+    <div class="crew-grid" id="crew-grid"></div>
+  </section>
+
+  <!-- Vitals detail -->
+  <section class="panel" aria-label="Vitals detail">
+    <div class="vitals-head">
+      <span class="who" id="detail-name">—</span>
+      <span id="detail-status"></span>
+      <span class="updated">Last updated: <span id="last-updated">—</span> · updates every 3 s (simulated)</span>
+    </div>
+    <div class="vital-grid" id="vital-grid"></div>
+    <p class="crew-note" id="crew-note"></p>
+  </section>
+
+  <!-- Trend charts -->
+  <section class="panel" aria-label="Trend charts">
+    <div class="section-head">
+      <h2>7-Day Trends</h2>
+      <span class="hint" id="charts-hint">Green band = safe range. The final point is today’s live simulated value.</span>
+    </div>
+    <div class="chart-grid">
+      <div class="chart-box">
+        <h3>Heart rate (bpm)</h3>
+        <p class="chart-note">Safe range 60–100 bpm</p>
+        <canvas id="chart-hr" aria-label="7-day heart rate chart"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>Blood oxygen SpO2 (%)</h3>
+        <p class="chart-note">Safe range 95–100%</p>
+        <canvas id="chart-spo2" aria-label="7-day blood oxygen chart"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>Sleep (hours / night)</h3>
+        <p class="chart-note">Target 7–9 h</p>
+        <canvas id="chart-sleep" aria-label="7-day sleep chart"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>Radiation dose (mSv / day)</h3>
+        <p class="chart-note" id="rad-chart-note">Daily dose vs environment action level</p>
+        <canvas id="chart-rad" aria-label="7-day radiation dose chart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- Alerts -->
+  <section class="panel" aria-label="Alerts">
+    <div class="section-head">
+      <h2>Active Alerts</h2>
+      <span class="hint">Rule-based alert engine — thresholds are evaluated on every simulated reading.</span>
+    </div>
+    <div id="alerts-list"></div>
+    <div class="alert-log">
+      <h3>Alert log</h3>
+      <ul id="alert-log"></ul>
+    </div>
+  </section>
+
+  <!-- 5 Hazards -->
+  <section class="panel" aria-label="Five hazards of human spaceflight">
+    <div class="section-head">
+      <h2>The 5 Hazards of Human Spaceflight</h2>
+      <span class="hint">NASA Human Research Program framework — each hazard mapped to the vitals VitalOrbit watches and the countermeasure it tracks.</span>
+    </div>
+    <div class="hazard-grid" id="hazard-grid"></div>
+  </section>
+
+  <div class="grid-2">
+    <!-- Daily timeline -->
+    <section class="panel" aria-label="Daily health timeline">
+      <div class="section-head">
+        <h2>Daily Health Timeline — Sol 142</h2>
+        <span class="hint">Click an item to mark it done.</span>
+      </div>
+      <ul class="timeline" id="timeline"></ul>
+    </section>
+
+    <!-- Chatbot -->
+    <section class="panel" aria-label="Health chatbot">
+      <div class="section-head">
+        <h2>Health Chatbot</h2>
+        <span class="hint">Rule-based Q&amp;A — general information only.</span>
+      </div>
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <div class="chat-chips" id="chat-chips"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Ask about heart rate, sleep, exercise, radiation…" aria-label="Ask the health chatbot">
+        <button type="button" id="chat-send">Ask</button>
+      </div>
+      <p class="chat-note">The chatbot gives general health information for awareness. It is not a medical device and never gives a diagnosis — if you feel unwell, alert the flight surgeon.</p>
+    </section>
+  </div>
+
+  <!-- Why this matters / About -->
+  <section class="panel" aria-label="Why this matters">
+    <div class="section-head"><h2>Why This Matters</h2></div>
+    <div class="about-cols">
+      <div>
+        <p>On a three-year Mars mission the nearest hospital is about 140 million miles away. The astronaut <b>is</b> the first responder — so they need to see their own health clearly, in colour, at a glance, with a plain-language action for every warning.</p>
+        <p>NASA’s Human Research Program groups the risks of long missions into five hazards — space radiation, isolation and confinement, distance from Earth, gravity fields, and hostile/closed environments. Their effects include cardiovascular changes, muscle atrophy, bone loss, mental-health effects, and vision and sleep problems. VitalOrbit maps each hazard to the vitals it affects, so a drift is visible days before it becomes an emergency.</p>
+      </div>
+      <div>
+        <h3>Data &amp; resources used</h3>
+        <ul id="sources-list"></ul>
+        <p style="font-size:0.88rem;color:var(--muted);">Reference ranges used: resting heart rate 60–100 bpm; SpO2 95–100%; sleep target 7–9 h; ISS crew effective dose ~0.2–0.5 mSv/day; NASA career radiation limit 600 mSv (NASA-STD-3001, 2022). Live values on this page are simulated and labelled as such.</p>
+      </div>
+    </div>
+    <div class="disclaimer">
+      <b>SIMULATED DATA.</b> Every live value on this page is simulated demo data for fictional crew members — it is not real astronaut data and not a live medical feed.
+      <b>Monitoring and awareness tool — not a medical device, not a diagnosis.</b> VitalOrbit supports awareness and education; it does not diagnose, treat, or replace a flight surgeon.
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>VitalOrbit — Team VitalOrbit India · NASA Space Apps Challenge 2026 · Built during the event, 14 November 2026.</p>
+  <p class="fine">AI tools assisted with coding support and text drafting under team direction; the idea and design are the team’s own. No NASA logos, branding, flags or mission identifiers are used in this project. No photos of people are used anywhere.</p>
+</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
