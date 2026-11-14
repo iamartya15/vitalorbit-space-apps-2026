@@ -772,7 +772,21 @@ footer { max-width: 1480px; }
 @media (max-width: 1100px) {
   .layout { grid-template-columns: 1fr; gap: 0; }
   .sidebar {
-    position: static; margin-top: 12px;
+    /* Sticky mobile nav: the strip docks directly under the sticky telemetry
+       header and stays reachable while scrolling. The top offset is the
+       measured header height for this range (721-1100px: the header wraps
+       to two rows, 110px); narrower ranges override it below. z-index sits
+       above section content, below the header (20) and the chat layer
+       (65-80). The strip keeps its translucent theme background and gains
+       the standard panel shadow so content scrolling beneath stays legible. */
+    position: sticky; top: 110px; z-index: 15; margin-top: 12px;
+    box-shadow: var(--shadow);
+    /* While docked, the strip sits over scrolling content for the whole
+       page: an opaque panel background (theme-aware) keeps it legible and
+       avoids the per-frame backdrop-blur repaint the translucent desktop
+       rail can afford because it does not travel with the scroll. */
+    background: var(--panel);
+    backdrop-filter: none;
     flex-direction: row; flex-wrap: nowrap; overflow-x: auto;
     padding: 8px; gap: 6px; align-items: center;
     scrollbar-width: none; -ms-overflow-style: none;
@@ -787,7 +801,18 @@ footer { max-width: 1480px; }
     padding: 10px 13px;
   }
   .side-link.active { border-bottom-color: var(--violet); }
-  .view { scroll-margin-top: 20px; }
+  /* Anchor targets clear the sticky stack: header (110) + strip (64) + gap. */
+  .view { scroll-margin-top: 184px; }
+}
+/* Compact-header range (630-720px): the header fits on one row (57px). */
+@media (max-width: 720px) {
+  .sidebar { top: 57px; }
+  .view { scroll-margin-top: 131px; }
+}
+/* Small phones (up to 629px): the header wraps to two rows again (86px). */
+@media (max-width: 629px) {
+  .sidebar { top: 86px; }
+  .view { scroll-margin-top: 160px; }
 }
 @media (max-width: 760px) {
   /* Mobile card: centred with side margins, about 70% of the dynamic
