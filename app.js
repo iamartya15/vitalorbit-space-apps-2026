@@ -34,6 +34,9 @@ function fmtDayTime(totalSeconds) {
 /* ---------- State ---------- */
 let selectedCrewId = 'okafor'; // open on the astronaut with active alerts, so judges see the engine working
 let envId = 'iss';
+let scenarioId = 'nominal'; // Scenario Simulator state: 'nominal' | 'spe' | 'co2'
+// Baseline SpO2 per crew member, captured at load, so a CO2 drift can recover.
+V.CREW.forEach((c) => { c._nominalSpo2 = c.vitals.spo2; });
 let alertLogEntries = []; // {time, text, kind}
 const knownAlertKeys = new Set(); // to log only newly-appearing alerts
 let charts = {};
@@ -47,9 +50,8 @@ function statusWord(s) { return s === 'green' ? 'In range' : s === 'amber' ? 'Wa
 
 function crewOverallStatus(crew) {
   const e = env();
-  const frac = missionDayFraction();
   const v = crew.vitals;
-  const radToday = e.doseRate * frac;
+  const radToday = radTodayFor(crew);
   return V.worstStatus([
     V.vitalStatus('hr', v.hr),
     V.vitalStatus('spo2', v.spo2),
@@ -60,14 +62,27 @@ function crewOverallStatus(crew) {
   ]);
 }
 
-function radTodayFor() { return env().doseRate * missionDayFraction(); }
+/* Effective dose rate: environment rate scaled by the active scenario
+   (a solar particle event multiplies it). */
+function effectiveDoseRate() { return env().doseRate * V.SCENARIOS[scenarioId].doseMultiplier; }
+
+/* Today's radiation dose for ONE crew member: exposure is per-crew, because
+   EVA work and time in shielded modules differ (crew.radFactor). */
+function radTodayFor(crew) {
+  return effectiveDoseRate() * missionDayFraction() * (crew.radFactor || 1);
+}
 
 /* ---------- Clock ---------- */
+let lastTimelineMinute = -1; // timeline re-renders only when the minute flips
 function tickClock() {
   const secs = missionDaySeconds();
   $('mission-clock').textContent =
     'SOL ' + MISSION_SOL + ' · ' + MISSION_DAY_BASE + 'd ' + fmtClock(secs);
-  renderTimeline();
+  const minute = Math.floor(secs / 60);
+  if (minute !== lastTimelineMinute) {
+    lastTimelineMinute = minute;
+    renderTimeline();
+  }
 }
 
 /* ---------- Environment ---------- */
@@ -81,7 +96,16 @@ function renderEnvButtons() {
     b.textContent = e.label;
     b.setAttribute('aria-pressed', e.id === envId ? 'true' : 'false');
     b.addEventListener('click', () => {
+      if (e.id === envId) return;
+      const oldRate = env().doseRate;
       envId = e.id;
+      // Rescale the 7-day radiation history to the new environment's dose
+      // rate, so the chart reflects the new context instead of showing a
+      // fake spike where the old environment's history meets today's point.
+      const ratio = e.doseRate / oldRate;
+      V.CREW.forEach((c) => {
+        c.history.radDay = c.history.radDay.map((x) => +(x * ratio).toFixed(2));
+      });
       renderEnvButtons();
       renderEnvPanel();
       renderCrewCards();
@@ -101,7 +125,8 @@ function renderEnvPanel() {
   $('env-gravity').textContent = 'Gravity: ' + e.gravity + ' · Comms delay: ' + e.commDelay;
   $('env-context').textContent = e.context;
   $('env-countermeasures').textContent = e.countermeasures;
-  $('env-dose-rate').textContent = e.doseRate.toFixed(1) + ' mSv/day';
+  $('env-dose-rate').textContent = effectiveDoseRate().toFixed(1) + ' mSv/day' +
+    (scenarioId !== 'nominal' ? ' (scenario simulation: ' + V.SCENARIOS[scenarioId].label + ')' : '');
   $('env-dose-budget').textContent = e.radAlertThreshold.toFixed(2) + ' mSv/day';
   $('env-line').textContent =
     'Environment: ' + e.label + ' · Gravity: ' + e.gravity + ' · Comms: ' + e.commDelay;
@@ -109,12 +134,51 @@ function renderEnvPanel() {
     'Daily dose vs ' + e.label + ' action level (' + e.radAlertThreshold.toFixed(2) + ' mSv/day)';
 }
 
+/* ---------- Scenario Simulator ---------- */
+function renderScenarioButtons() {
+  const box = $('scenario-buttons');
+  if (!box) return;
+  box.innerHTML = '';
+  Object.values(V.SCENARIOS).forEach((s) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'env-btn' + (s.id === scenarioId ? ' active' : '') + (s.id !== 'nominal' ? ' danger' : '');
+    b.textContent = s.label;
+    b.setAttribute('aria-pressed', s.id === scenarioId ? 'true' : 'false');
+    b.addEventListener('click', () => setScenario(s.id));
+    box.appendChild(b);
+  });
+}
+
+function setScenario(id) {
+  if (id === scenarioId) return;
+  scenarioId = id;
+  if (id === 'co2') {
+    // Immediate nudge so the drift is visible at once; liveTick keeps it
+    // drifting while the scenario stays active.
+    V.CREW.forEach((c) => {
+      c.vitals.spo2 = clamp(c.vitals.spo2 - 2, 91, 100);
+      c.vitals.hr = clamp(c.vitals.hr + 4, 55, 118);
+      if (c.vitals.hr > 100) c.highHrStreak = (c.highHrStreak || 0) + 2;
+    });
+  }
+  renderScenarioButtons();
+  logAlert('Scenario set: ' + V.SCENARIOS[id].label + (id === 'nominal' ? ' (baseline restored)' : ' (scenario simulation)'), 'scenario');
+  renderEnvPanel();
+  renderCrewCards();
+  renderVitals();
+  renderAlerts();
+  renderHazards();
+  updateChartTodayPoints();
+}
+
 /* ---------- Crew cards ---------- */
 function renderCrewCards() {
   const grid = $('crew-grid');
   grid.innerHTML = '';
-  const radToday = radTodayFor();
   V.CREW.forEach((crew) => {
+    const radToday = radTodayFor(crew);
+    crew.vitals.radDayToday = radToday;
     const st = crewOverallStatus(crew);
     const card = document.createElement('button');
     card.type = 'button';
@@ -128,7 +192,7 @@ function renderCrewCards() {
       ' <span class="badge ' + st + '">' + statusWord(st) + '</span></span>' +
       '<span class="mini-vitals">' +
       '<span>HR <b>' + crew.vitals.hr + ' bpm</b></span><span>SpO2 <b>' + crew.vitals.spo2 + '%</b></span>' +
-      '<span>Sleep <b>' + crew.vitals.sleep.toFixed(1) + ' h</b></span><span>Rad today <b>' + radToday.toFixed(2) + ' mSv</b></span>' +
+      '<span>Sleep <b>' + crew.vitals.sleep.toFixed(1) + ' h</b></span><span>Rad today <b>' + radToday.toFixed(2) + '&nbsp;mSv</b></span>' +
       '</span>';
     card.addEventListener('click', () => {
       selectedCrewId = crew.id;
@@ -162,10 +226,11 @@ function renderVitals() {
   const crew = crewById(selectedCrewId);
   const e = env();
   const v = crew.vitals;
-  const radToday = radTodayFor();
+  const radToday = radTodayFor(crew);
+  crew.vitals.radDayToday = radToday;
   const overall = crewOverallStatus(crew);
 
-  $('detail-name').textContent = crew.name + ' — ' + crew.role;
+  $('detail-name').textContent = crew.name + ' · ' + crew.role;
   $('detail-status').innerHTML = '<span class="badge ' + overall + '">Overall: ' + statusWord(overall) + '</span>';
   $('last-updated').textContent = lastTickAt || ('Sol ' + MISSION_SOL + ' ' + fmtDayTime(missionDaySeconds()));
 
@@ -271,7 +336,8 @@ function updateChartTodayPoints() {
   };
   if (charts.hr) setLast(charts.hr, crew.vitals.hr);
   if (charts.spo2) setLast(charts.spo2, crew.vitals.spo2);
-  if (charts.rad) setLast(charts.rad, +radTodayFor().toFixed(2));
+  if (charts.sleep) setLast(charts.sleep, crew.vitals.sleep);
+  if (charts.rad) setLast(charts.rad, +radTodayFor(crew).toFixed(2));
 }
 
 /* ---------- Alerts ---------- */
@@ -288,14 +354,14 @@ function renderAlertLog() {
     return;
   }
   ul.innerHTML = alertLogEntries.map((en) =>
-    '<li><time>' + en.time + '</time> — ' + en.text + '</li>').join('');
+    '<li><time>' + en.time + '</time> · ' + en.text + '</li>').join('');
 }
 
 function renderAlerts() {
   const frac = missionDayFraction();
   const all = [];
   V.CREW.forEach((crew) => {
-    V.evaluateAlerts(crew, env(), frac).forEach((a) => all.push({ crew, alert: a }));
+    V.evaluateAlerts(crew, env(), frac, scenarioId).forEach((a) => all.push({ crew, alert: a }));
   });
 
   // Log newly-appearing alerts (and note cleared ones) — once per alert key.
@@ -304,20 +370,20 @@ function renderAlerts() {
     if (!knownAlertKeys.has(key)) {
       knownAlertKeys.add(key);
       const item = all.find((x) => (x.crew.id + ':' + x.alert.code) === key);
-      logAlert('ALERT raised — ' + item.crew.name + ': ' + item.alert.title + ' (' + item.alert.severity + ')', 'raised');
+      logAlert('ALERT raised: ' + item.crew.name + ': ' + item.alert.title + ' (' + item.alert.severity + ')', 'raised');
     }
   });
   [...knownAlertKeys].forEach((key) => {
     if (!currentKeys.has(key)) {
       knownAlertKeys.delete(key);
       const [crewId, code] = key.split(':');
-      logAlert('ALERT cleared — ' + crewById(crewId).name + ': ' + code, 'cleared');
+      logAlert('ALERT cleared: ' + crewById(crewId).name + ': ' + code, 'cleared');
     }
   });
 
   const list = $('alerts-list');
   if (!all.length) {
-    list.innerHTML = '<p class="all-clear">All clear — no active alerts across the crew.</p>';
+    list.innerHTML = '<p class="all-clear">All clear: no active alerts across the crew.</p>';
     return;
   }
   // Red first, then amber.
@@ -325,7 +391,7 @@ function renderAlerts() {
   list.innerHTML = all.map((x) =>
     '<div class="alert-item ' + x.alert.severity + '">' +
     '<div class="a-top"><span class="badge ' + x.alert.severity + '">' + x.alert.severity.toUpperCase() + '</span>' +
-    '<span class="a-title">' + x.alert.title + ' — ' + x.crew.name + '</span></div>' +
+    '<span class="a-title">' + x.alert.title + ' · ' + x.crew.name + '</span></div>' +
     '<div class="a-detail">' + x.alert.detail + '</div>' +
     '<div class="a-action"><b>Recommended action:</b> ' + x.alert.action + '</div>' +
     '</div>').join('');
@@ -402,15 +468,19 @@ function askChatbot(question) {
   const q = question.trim();
   if (!q) return;
   addChatMessage(q, 'user');
-  const ans = V.answerChatbot(q);
+  // First pass: questions about the selected crew member's own state are
+  // answered from their live values; everything else uses the Q&A bank.
+  const crew = crewById(selectedCrewId);
+  const ans = V.answerLiveState(q, crew, radTodayFor(crew), env()) || V.answerChatbot(q);
   addChatMessage(ans.a, 'bot', ans.learn);
 }
 
 function initChatbot() {
-  addChatMessage('Hello — I am the VitalOrbit health assistant. Ask me about heart rate, sleep, exercise, radiation, or any crew health topic. I give general information only, never a diagnosis.', 'bot',
+  addChatMessage('Hello. I am the VitalOrbit health assistant. Ask me about your own vitals, or about heart rate, sleep, exercise, radiation, or any crew health topic.', 'bot',
     'Built from NASA Human Research Program material on the five hazards of human spaceflight.');
   const chips = $('chat-chips');
   const picks = [
+    'How am I doing?',
     'Why is my heart rate high in space?',
     'How much exercise do I need?',
     'How do I sleep better in microgravity?',
@@ -418,7 +488,7 @@ function initChatbot() {
     'Why do astronauts lose bone in space?',
     'I feel isolated. What helps?',
     'What if my blood oxygen is low?',
-    'I feel unwell — what do I do?',
+    'I feel unwell. What do I do?',
   ];
   picks.forEach((q) => {
     const b = document.createElement('button');
@@ -455,23 +525,32 @@ function liveTick() {
   V.CREW.forEach((crew) => {
     const v = crew.vitals;
     // Heart rate: gentle random walk; Okafor stays elevated by design.
-    const base = crew.id === 'okafor' ? 104 : { reyes: 62, chen: 68, novak: 71 }[crew.id];
-    v.hr = clamp(Math.round(v.hr + (Math.random() * 2 - 1) * 2 + (base - v.hr) * 0.15), 55, 115);
-    // SpO2: small walk, integer.
-    v.spo2 = clamp(Math.round(v.spo2 + (Math.random() * 2 - 1) * 0.6), 93, 100);
+    // A CO2 scrubber drift raises everyone's resting heart rate while active.
+    const baseHr = crew.id === 'okafor' ? 104 : { reyes: 62, chen: 68, novak: 71 }[crew.id];
+    const base = baseHr + (scenarioId === 'co2' ? 9 : 0);
+    v.hr = clamp(Math.round(v.hr + (Math.random() * 2 - 1) * 2 + (base - v.hr) * 0.15), 55, 118);
+    // SpO2: small walk, integer. Under CO2 drift it sinks; otherwise it
+    // recovers toward the crew member's baseline captured at load.
+    if (scenarioId === 'co2') {
+      v.spo2 = clamp(Math.round(v.spo2 + (Math.random() * 2 - 1) * 0.6 - 0.3), 91, 100);
+    } else {
+      const recovery = v.spo2 < crew._nominalSpo2 ? 0.35 : 0;
+      v.spo2 = clamp(Math.round(v.spo2 + (Math.random() * 2 - 1) * 0.6 + recovery), 93, 100);
+    }
     // Stress: slow walk.
     v.stress = clamp(+(v.stress + (Math.random() * 2 - 1) * 0.15).toFixed(1), 1, 10);
     // Exercise: a minute here and there as the day goes on.
     if (Math.random() < 0.4) v.exercise = Math.min(150, v.exercise + 1);
-    // Cumulative radiation grows with the environment dose rate.
-    v.radCumulative = +(v.radCumulative + (e.doseRate * 3) / 86400).toFixed(3);
+    // Cumulative radiation grows with the effective (scenario-scaled) dose rate.
+    v.radCumulative = +(v.radCumulative + (effectiveDoseRate() * 3) / 86400).toFixed(3);
     // High-HR streak tracking for the alert rule.
     if (v.hr > 100) crew.highHrStreak = (crew.highHrStreak || 0) + 1;
     else crew.highHrStreak = 0;
-    // Keep today's history point in step with the live value.
+    // Keep today's history point in step with the live value (per-crew dose).
+    crew.vitals.radDayToday = radTodayFor(crew);
     crew.history.hr[crew.history.hr.length - 1] = v.hr;
     crew.history.spo2[crew.history.spo2.length - 1] = v.spo2;
-    crew.history.radDay[crew.history.radDay.length - 1] = +radTodayFor().toFixed(2);
+    crew.history.radDay[crew.history.radDay.length - 1] = +radTodayFor(crew).toFixed(2);
   });
   lastTickAt = 'Sol ' + MISSION_SOL + ' ' + fmtDayTime(missionDaySeconds());
   renderCrewCards();
@@ -501,6 +580,7 @@ function ensureCharts(done) {
 
 function init() {
   renderEnvButtons();
+  renderScenarioButtons();
   renderEnvPanel();
   renderCrewCards();
   renderVitals();
