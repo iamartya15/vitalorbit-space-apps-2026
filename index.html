@@ -51,9 +51,8 @@
     <a class="side-link" href="#view-environment">Environment</a>
     <a class="side-link" href="#view-radiation">Radiation &amp; Mission</a>
     <a class="side-link" href="#view-risk">Risk &amp; Alerts</a>
-    <a class="side-link" href="#view-assistant">AI Assistant</a>
     <a class="side-link" href="#view-methodology">Methodology</a>
-    <p class="side-note">Seven views, one mission. Use the AI Assistant button at the bottom right to ask about anything on this page.</p>
+    <p class="side-note">Six views, one mission. Use the AI Assistant button at the bottom right to ask about anything on this page.</p>
   </nav>
 
 <main>
@@ -316,29 +315,6 @@
     </section>
   </section>
 
-  <!-- ============ VIEW: AI Assistant ============ -->
-  <section class="view" id="view-assistant" aria-labelledby="h-assistant">
-    <div class="view-head">
-      <h2 id="h-assistant">AI Assistant</h2>
-      <p>The assistant explains the live dashboard state: why an alert fired, what a 7-day trend means, what a scenario changes. It also floats: the AI Assistant button at the bottom right opens it from any view.</p>
-    </div>
-    <div id="chat-home"></div>
-    <!-- Chatbot -->
-    <section class="panel" id="chatbot-section" aria-label="Health chatbot">
-      <div class="section-head">
-        <h2>Health Chatbot</h2>
-        <span class="hint">Rule-based Q&amp;A · try “How am I doing?” or “Why is Okafor flagged?”</span>
-      </div>
-      <p class="chat-safety">Simulation assistant: it explains this dashboard's simulated data and rules only. It does not diagnose, prescribe or replace the flight surgeon, and it is not a NASA medical system.</p>
-      <div class="chat-log" id="chat-log" aria-live="polite"></div>
-      <div class="chat-chips" id="chat-chips"></div>
-      <div class="chat-input-row">
-        <input type="text" id="chat-input" placeholder="Ask about heart rate, sleep, exercise, radiation…" aria-label="Ask the health chatbot">
-        <button type="button" id="chat-send">Ask</button>
-      </div>
-    </section>
-  </section>
-
   <!-- ============ VIEW: Methodology ============ -->
   <section class="view" id="view-methodology" aria-labelledby="h-methodology">
     <div class="view-head">
@@ -391,7 +367,23 @@
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
     </button>
   </div>
-  <div class="chat-panel-body" id="chat-panel-body"></div>
+  <div class="chat-panel-body" id="chat-panel-body">
+  <!-- Chatbot: lives permanently in this floating panel; the AI Assistant
+       button at the bottom right is its only entry point. -->
+  <section class="panel" id="chatbot-section" aria-label="Health chatbot">
+    <div class="section-head">
+      <h2>Health Chatbot</h2>
+      <span class="hint">Rule-based Q&amp;A · try “How am I doing?” or “Why is Okafor flagged?”</span>
+    </div>
+    <p class="chat-safety">Simulation assistant: it explains this dashboard's simulated data and rules only. It does not diagnose, prescribe or replace the flight surgeon, and it is not a NASA medical system.</p>
+    <div class="chat-log" id="chat-log" aria-live="polite"></div>
+    <div class="chat-chips" id="chat-chips"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chat-input" placeholder="Ask about heart rate, sleep, exercise, radiation…" aria-label="Ask the health chatbot">
+      <button type="button" id="chat-send">Ask</button>
+    </div>
+  </section>
+  </div>
 </div>
 
 <div id="alert-announcer" class="visually-hidden" aria-live="assertive"></div>

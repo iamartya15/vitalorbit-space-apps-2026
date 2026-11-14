@@ -632,6 +632,15 @@ footer { max-width: 1480px; }
 
 /* Views */
 .view { scroll-margin-top: 84px; margin-bottom: 30px; min-width: 0; }
+/* Wide desktop (over 1500px): the clock sub-line reappears (it is hidden at
+   1500px and below), the topbar row wraps to two rows and the sticky header
+   grows from 81px to 128px, so anchor targets need the taller offset to land
+   clear of it, and the sticky sidebar must dock below the taller header so
+   its "Mission views" title never slides underneath. Header height + gap. */
+@media (min-width: 1501px) {
+  .view { scroll-margin-top: 132px; }
+  .sidebar { top: 132px; }
+}
 .view-head { margin: 2px 0 14px; }
 .view-head h2 { font-size: 1.35rem; text-transform: none; letter-spacing: normal; }
 .view-head p { color: var(--muted); max-width: 78ch; margin-top: 4px; }

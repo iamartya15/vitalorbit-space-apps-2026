@@ -874,27 +874,143 @@ function addChatMessage(text, who, learn) {
   log.scrollTop = log.scrollHeight;
 }
 
+/* ---------- Chatbot: project answers for newcomers ----------
+   The assistant also explains the project itself, so a first-time visitor
+   (or a judge) can understand what VitalOrbit is and how it works just by
+   asking. The intents are deliberately narrow and project-specific, so
+   health and live-state questions keep flowing to the layers below, and
+   state-specific questions ("why is Okafor flagged?", "what is the CO2
+   scenario doing?") keep their existing explainable answers. Every
+   statement matches the page: simulated data, fictional crew, published
+   reference values, NASA non-endorsement. */
+const PROJECT_LEARN = 'VitalOrbit is a student-built demo for the NASA Space Apps Challenge 2026. It is not a medical system, and NASA does not endorse this project.';
+
+function projectOverviewAnswer() {
+  return {
+    a: 'VitalOrbit is an astronaut health monitoring dashboard built by Team VitalOrbit India for the NASA Space Apps Challenge 2026, answering the challenge "Create Health Monitoring Software for Astronauts on Space Missions". On a long mission the nearest hospital can be millions of miles away and the crew are their own first responders, so VitalOrbit watches heart rate, blood oxygen, sleep, stress, exercise and radiation dose for four fictional astronauts, plus the cabin air around them, and explains every warning in plain language: what fired, why, and what to do. Use the views on the left (or the strip at the top on a phone) to explore, and ask me things like "What is VitalOrbit?", "How does this work?", "Is this real data?" or "Why is Okafor flagged?".',
+    learn: PROJECT_LEARN,
+  };
+}
+
+function isProjectQuestion(q) {
+  return /\b(vitalorbit|this (app|project|dashboard|page|site|demo)|the (app|project|dashboard|demo)|nasa|space apps|hackathon|challenge|judge|judges|presentation|deck|your team|who made|who built|who created)\b/.test(' ' + q.toLowerCase() + ' ');
+}
+
+function answerProject(question, ctx) {
+  const q = ' ' + question.toLowerCase().trim() + ' ';
+  const crewNamed = V.CREW.some((c) => q.includes(c.id) || q.includes(c.name.toLowerCase().split(' ').pop()));
+
+  // What is VitalOrbit / what is this project?
+  if (/\bwhat is (vitalorbit|this)\b/.test(q) || /\bwhat('s| is) this (app|project|dashboard|page|site|demo)\b/.test(q) ||
+      /\bwhat does vitalorbit do\b/.test(q) || /\b(tell me about|about) (vitalorbit|this project|this app|this dashboard)\b/.test(q) ||
+      /\bwhat is (the|this) (nasa )?space apps challenge\b/.test(q)) {
+    return projectOverviewAnswer();
+  }
+
+  // How does it work / how do I use the dashboard?
+  if (/\bhow does (this|it|vitalorbit|the dashboard|the app) work\b/.test(q) || /\bhow do i use\b/.test(q) ||
+      /\bhow to use\b/.test(q) || /\btour\b/.test(q) || /\bguide me\b/.test(q) ||
+      /\bwhere (do|should) i start\b/.test(q) || /\bwhat can (i|you) do\b/.test(q) ||
+      /\bexplain (this|the) (dashboard|app|page|project)\b/.test(q) || q.trim() === 'help') {
+    return {
+      a: 'Here is the tour. Overview: the whole mission at a glance, plus the mission controls. Crew Health: pick one of the four astronauts to see their vitals, 7-day trend charts, daily timeline and exercise adherence; every other view follows the same selection. Environment: where the crew is and the cabin air they breathe. Radiation & Mission: dose rates, the 7-day dose trend, and why no career projection is shown. Risk & Alerts: every active alert with its evidence, basis and limitation, plus the five hazards of human spaceflight. Methodology: the basis, source and limitation of every number on the page. Two controls change everything live: the Environment switcher (Spacecraft transit, ISS, Moon, Mars) and the Scenario Simulator (Nominal Orbit, Solar Particle Event, CO2 Scrubber Drift), both on the Overview. The button at the bottom right opens me from anywhere, and the sun/moon button at the top switches the light and dark themes.',
+      learn: PROJECT_LEARN,
+    };
+  }
+
+  // Is this real data?
+  if (/\bis (this|the data|it|that) (real|live data|actual)\b/.test(q) || /\breal (data|astronauts|people|measurements)\b/.test(q) ||
+      /\bis this (a |really |just )?(simulation|simulated|fake|real)\b/.test(q) || /\bfictional\b/.test(q) ||
+      /\bwhere does (the|this) data come from\b/.test(q)) {
+    return {
+      a: 'No. Every live value on this page is SIMULATED demo data, generated for four fictional astronauts (Reyes, Chen, Okafor and Novak), and the header says so: "SIMULATED TELEMETRY". Nothing here is a real measurement from a real person. What IS real is the yardstick the simulated values are judged against: the reference ranges and measurements come from published sources listed in the Methodology view, for example resting heart rate 60 to 100 bpm and SpO2 95 to 100% (standard clinical ranges), sleep 7 to 9 h, the Mars surface dose measured by MSL/RAD, the Moon dose measured by Chang\'E-4, and NASA\'s 600 mSv career limit in NASA-STD-3001. Each number also carries a tag: SIMULATED is a generated demo value, DERIVED is computed from simulated inputs by a stated rule, and ESTIMATE is extrapolated from a simulated rate and is not a forecast.',
+      learn: PROJECT_LEARN,
+    };
+  }
+
+  // How do alerts work? (Why a specific astronaut is flagged stays with
+  // the explainable layer below.)
+  if (/\bhow do alerts work\b/.test(q) || /\bhow are alerts (generated|created|decided|triggered|raised)\b/.test(q) ||
+      /\balert (system|engine|rules?|logic)\b/.test(q) || /\bwhat (is|does) an alert (mean|do)\b/.test(q) ||
+      /\bwhat do alerts mean\b/.test(q)) {
+    return {
+      a: 'Alerts are rule-based, not a black box. Every few seconds each astronaut\'s simulated readings are checked against fixed thresholds: for example, resting heart rate above 100 bpm, SpO2 below 95%, sleep under 6 h, or stress above 7 out of 10. Crossing a watch threshold raises an amber alert; crossing the action threshold raises a red one. Three crossings together (sleep under 6 h AND stress above 7 AND resting heart rate above 100) fire one compound alert, "Compound Fatigue & Cardiovascular Strain", which replaces the three separate warnings so the problem is shown once, whole. Radiation uses an action level set at 90% of the current environment\'s daily dose rate: a watch at 80% of that level, an alert at the level itself. Every alert shows its trigger, the live evidence, a suggested action, its basis and its limitation. The thresholds are demo rules (simulation assumptions, labelled in Methodology), not NASA limits.',
+      learn: PROJECT_LEARN,
+    };
+  }
+
+  // What are the scenarios? (What a scenario is doing right now stays
+  // with the explainable layer below.)
+  if (/\bwhat (are|is) the scenarios?\b/.test(q) || /\bwhich scenarios\b/.test(q) ||
+      /\blist (the |all )?scenarios\b/.test(q) || /\bscenario (options|simulator)\b/.test(q) ||
+      /\bwhat scenarios (are there|can i|exist)\b/.test(q)) {
+    return {
+      a: 'The Scenario Simulator on the Overview offers three what-if scenarios. Nominal Orbit is the calm baseline. Solar Particle Event multiplies the simulated radiation dose rate by 6, so radiation watches and alerts respond. CO2 Scrubber Drift makes the cabin CO2 climb while crew SpO2 drifts down and resting heart rate drifts up. Switching back to Nominal Orbit after a CO2 drift does not snap anything back: a labelled recovery runs for about 30 seconds and returns the vitals and the cabin CO2 to the exact pre-scenario values, so you can watch the crew recover.',
+      learn: PROJECT_LEARN,
+    };
+  }
+
+  // The Mars radiation dose: the surface figure, exactly as the app and
+  // the Methodology view state it. Own-state questions ("my dose") and
+  // named-crew questions stay with the layers below.
+  if (/\bmars\b/.test(q) && /\b(dose|radiation|msv)\b/.test(q) && !/\bmy\b/.test(q) && !crewNamed) {
+    const mars = V.ENVIRONMENTS.mars;
+    // Reuse the app's own shared note: the career limit is an effective
+    // dose and these rates are dose equivalent, so no projection is shown.
+    const note = V.doseProjection(ctx.crew, mars, 'nominal', ctx.frac).careerNote;
+    return {
+      a: 'For the Mars surface, VitalOrbit uses 0.64 ± 0.12 mSv/day (dose equivalent), measured by the MSL Radiation Assessment Detector at Gale Crater (Hassler et al., Science, 2014). The daily action level in that environment is 90% of the rate, ' + mars.radAlertThreshold.toFixed(2) + ' mSv. Do not confuse the surface figure with the higher 1.84 ± 0.30 mSv/day from Zeitlin et al. (2013): that was measured during the cruise to Mars, in transit, and this app never uses it as a surface value. ' + note,
+      learn: PROJECT_LEARN,
+    };
+  }
+
+  // Who made this / where are the deck and the sources?
+  if (/\bwho (made|built|created|developed|coded)\b/.test(q) || /\byour team\b/.test(q) ||
+      /\b(team|the) (deck|presentation|slides)\b/.test(q) || /\bwhere (is|can i find) the (deck|presentation|slides|sources|references)\b/.test(q) ||
+      /\bwhat are (your|the) (sources|references)\b/.test(q)) {
+    return {
+      a: 'VitalOrbit was built by Team VitalOrbit India during the NASA Space Apps Challenge 2026 (14 November 2026), in answer to the challenge "Create Health Monitoring Software for Astronauts on Space Missions". The team\'s demo deck (PDF and PPTX) is in the project repository under deck/. Every source behind the numbers is listed on this page: the Methodology view carries the data and resources used, the basis for each parameter, and the full source references, including the NASA Human Research Program five-hazards material, NASA-STD-3001, and the MSL/RAD and Chang\'E-4 papers.',
+      learn: PROJECT_LEARN,
+    };
+  }
+
+  return null;
+}
+
 function askChatbot(question) {
   const q = question.trim();
   if (!q) return;
   addChatMessage(q, 'user');
-  // Layer order: (1) explainable state-aware answers (why flagged, trends,
-  // scenarios, hazards, projections, data-not-held), (2) live-state answers
-  // about the selected crew member, (3) the Q&A bank.
+  // Layer order: (1) project answers for newcomers (what VitalOrbit is,
+  // how the dashboard works, whether the data is real, how alerts and
+  // scenarios work, the Mars dose figure, who built it), (2) explainable
+  // state-aware answers (why flagged, trends, scenarios, hazards,
+  // projections, data-not-held), (3) live-state answers about the selected
+  // crew member, (4) the Q&A bank. A question about the project that no
+  // layer recognises gets the project overview instead of the health-only
+  // fallback; health questions keep the bank's behaviour exactly.
   const crew = crewById(selectedCrewId);
   const ctx = {
     crew, env: env(), scenario: scenarioId, frac: missionDayFraction(),
     radToday: radTodayFor(crew), cabin, minutesOfDay: missionDayMinutes() % 1440,
   };
-  const ans = V.answerExplain(q, ctx) || V.answerLiveState(q, crew, radTodayFor(crew), env()) || V.answerChatbot(q);
+  let ans = answerProject(q, ctx) || V.answerExplain(q, ctx) ||
+    V.answerLiveState(q, crew, radTodayFor(crew), env());
+  if (!ans) {
+    const bank = V.answerChatbot(q);
+    ans = bank.q === null && isProjectQuestion(q) ? projectOverviewAnswer() : bank;
+  }
   addChatMessage(ans.a, 'bot', ans.learn);
 }
 
 function initChatbot() {
-  addChatMessage('Hello. I am the VitalOrbit health assistant. Ask me about your own vitals, or about heart rate, sleep, exercise, radiation, or any crew health topic.', 'bot',
+  addChatMessage('Hello. I am the VitalOrbit health assistant. Ask me about your own vitals, or about heart rate, sleep, exercise, radiation, or any crew health topic. New here? Ask "What is VitalOrbit?" or "How does this work?" and I will explain the whole project.', 'bot',
     'Built from NASA Human Research Program material on the five hazards of human spaceflight.');
   const chips = $('chat-chips');
   const picks = [
+    'What is VitalOrbit?',
+    'How does this work?',
+    'Is this real data?',
     'How am I doing?',
     'Why is my heart rate high in space?',
     'How much exercise do I need?',
@@ -1138,20 +1254,19 @@ function renderAdherence() {
 }
 
 /* ---------- Floating AI assistant (redesign) ----------
-   One chatbot component, two homes: docked in the AI Assistant view, or
-   moved into the floating panel. Moving the node moves the live chat
-   state with it; no chatbot logic is duplicated. */
+   The chatbot component lives permanently inside the floating panel;
+   the AI Assistant button at the bottom right is its only entry point.
+   Opening and closing only show and hide the panel, so the conversation
+   history is never moved, copied or lost. */
 let chatPanelOpen = false;
 let chatHideTimer = null;
 function setChatPanel(open) {
   const panel = $('chat-panel');
-  const section = $('chatbot-section');
-  if (!panel || !section) return;
+  if (!panel) return;
   chatPanelOpen = open;
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (open) {
     if (chatHideTimer) { clearTimeout(chatHideTimer); chatHideTimer = null; }
-    $('chat-panel-body').appendChild(section);
     panel.hidden = false;
     $('chat-backdrop').hidden = false;
     $('chat-fab').setAttribute('aria-expanded', 'true');
@@ -1164,13 +1279,11 @@ function setChatPanel(open) {
     panel.classList.remove('open');
     $('chat-fab').setAttribute('aria-expanded', 'false');
     $('chat-fab').focus();
-    // The section (and with it the whole conversation history) moves home
+    // The panel (and with it the whole conversation history) is hidden
     // only once the card has faded, and only if it was not reopened.
     const finish = () => {
       chatHideTimer = null;
       if (chatPanelOpen) return;
-      const home = $('chat-home');
-      if (home && home.parentNode) home.parentNode.insertBefore(section, home.nextSibling);
       panel.hidden = true;
       $('chat-backdrop').hidden = true;
     };
