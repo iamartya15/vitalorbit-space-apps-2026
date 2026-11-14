@@ -31,7 +31,7 @@ No build step, no server, no install. Open `index.html` in any modern browser (o
 - **Environment switcher**: Spacecraft / ISS / Moon / Mars. Switching changes the hazard context, radiation dose rates, and the countermeasures tracked.
 - **5-Hazards risk view**: each of NASA's five hazards of human spaceflight mapped to the vitals it affects, its current risk level, and the countermeasure being tracked, with hand-drawn inline SVG icons.
 - **Daily health timeline**: exercise, meals, sleep window and check-ins across the day; overdue items are flagged from the mission clock, and items can be ticked off.
-- **Health chatbot**: four layers. (1) An explainable layer answers "Why is Okafor flagged?", trend, scenario, hazard and dose-projection questions from the live state, showing inputs, the rule used, data provenance and a limitation; questions about data the dashboard does not hold (blood pressure, medication, diagnosis) get an explicit "insufficient data" answer. (2) Live-state answers: "How am I doing?" or "Is my heart rate normal?" are answered from the selected crew member's live values with range comparisons and advice. (3) A rule-based Q&A bank on ~18 topics (heart rate, sleep, exercise, radiation, bone loss, isolation…), with a short education note under each answer. The chatbot never diagnoses or prescribes, and a safety line in the panel says so. (4) A project layer explains what VitalOrbit is, how the dashboard works, how alerts and scenarios work, and that all live data is simulated, so a newcomer can understand the whole project just by asking. The chatbot lives in a floating panel: an AI Assistant button at the bottom right opens it in a slide-in panel (desktop) or a bottom sheet (mobile) from any view.
+- **Health chatbot**: four layers. (1) An explainable layer answers "Why is Okafor flagged?", trend, scenario, hazard and dose-projection questions from the live state, showing inputs, the rule used, data provenance and a limitation; questions about data the dashboard does not hold (blood pressure, medication, diagnosis) get an explicit "insufficient data" answer. (2) Live-state answers: "How am I doing?" or "Is my heart rate normal?" are answered from the selected crew member's live values with range comparisons and advice. (3) A rule-based Q&A bank on ~18 topics (heart rate, sleep, exercise, radiation, bone loss, isolation…), with a short education note under each answer. The chatbot never diagnoses or prescribes, and a safety line in the panel says so. (4) A project layer explains what VitalOrbit is, how the dashboard works, how alerts and scenarios work, and that all live data is simulated, so a newcomer can understand the whole project just by asking. The chatbot lives in a floating panel: an AI Assistant button at the bottom right opens it as a compact floating card, anchored at the bottom right on desktop and mobile alike, from any view.
 - **Per-alert decision support**: every alert shows, in a fixed shape, its trigger condition, the live evidence, a suggested informational action, a basis label (simulation guidance, or operationally referenced where the action follows tracked countermeasure practice) and its limitation. Cabin CO2 out-of-range states show the same guidance shape. Guidance is display-only: it never changes a simulated value and is never presented as a NASA flight procedure.
 - **Explainable hazards**: each hazard card opens a "Why this risk?" detail with the exact inputs for the selected astronaut, the rule in plain words, the threshold state, the evidence basis and the countermeasure information. Individual risk stays separate from the crew worst-case line.
 
@@ -55,13 +55,15 @@ How the simulated values are generated:
 ## Architecture
 
 ```
-index.html  · seven-view dashboard layout: sidebar navigation + views (no NASA logos, branding, flags or mission identifiers)
-styles.css  · dark "mission control" theme, colour-first status
+index.html  · six-view dashboard layout: sidebar navigation + views (no NASA logos, branding, flags or mission identifiers)
+styles.css  · dark (default) and light "mission control" themes with a header toggle, persisted in localStorage; colour-first status
 app.js      · live simulation loop, scenario simulator, charts, timeline, chatbot UI
 data.js     · crew profiles, 7-day seeded histories, hazard model, reference ranges,
               environment profiles, alert rules, chatbot Q&A + live-state answers
-assets/     · three NASA photographs (NASA Image and Video Library), bundled locally
-              for offline use and credited in the Methodology view
+assets/     · one NASA photograph used in the UI (Earth at night from the ISS,
+              NASA Image and Video Library), bundled locally for offline use and
+              credited in the Methodology view; two further NASA images from an
+              earlier design remain in the folder but are not displayed
 vendor/     · Chart.js 4.4.1 (MIT, vendored so the app works fully offline)
 ```
 
@@ -76,7 +78,7 @@ Thresholds and reference ranges are grounded in NASA Human Research Program mate
 | Resting heart rate | 60–100 bpm | Published reference range: standard clinical resting range; HRP cardiovascular risk context |
 | Blood oxygen (SpO₂) | 95–100% | Published reference range: standard healthy saturation range |
 | Sleep | 7–9 h / night | Published reference range; NASA schedules an 8.5 h sleep opportunity aboard ISS |
-| Radiation dose | ISS ~0.2–0.5 mSv/day; career limit 600 mSv (effective dose) | Career limit is a NASA requirement: NASA-STD-3001 Vol 1 §4.8.2. The limit is an effective dose; every dose figure simulated in the app is dose equivalent, so the app shows no time-to-career-limit estimate (the two quantities cannot be divided without a validated conversion). ISS planning rate 0.4 mSv/day sits inside the published ~0.2–0.5 range |
+| Radiation dose | ISS 0.4 mSv/day (dose equivalent, simulation assumption); career limit 600 mSv (effective dose) | Career limit is a NASA requirement: NASA-STD-3001 Vol 1 §4.8.2. The limit is an effective dose; every dose figure simulated in the app is dose equivalent, so the app shows no time-to-career-limit estimate (the two quantities cannot be divided without a validated conversion). The ISS rate is a labelled simulation assumption, NOT the published ~0.2–0.5 mSv/day figure: that range is an effective-dose planning range (NASA OCHMO TB-020), a different quantity. Measured dose equivalent inside the Columbus laboratory runs higher and varies with location, shielding and solar cycle: up to 647 µSv/day (DOSIS/DOSIS 3D DOSTEL, Berger et al., J Space Weather Space Clim 7:A8, 2017) and 731 µSv/day in early 2019 (DOSIS 3D, reported in Zhang et al., Science Advances 6:eaaz1334, 2020) |
 | Lunar surface dose | 1.4 mSv/day dose equivalent | Published measurement: Chang'E-4 LND, ~1,369 µSv/day (Science Advances, 2020) |
 | Mars surface dose | 0.64 mSv/day dose equivalent | Published measurement: MSL/RAD at Gale Crater, 0.64 ± 0.12 mSv/day (Hassler et al., Science, 2014). The MSL/RAD cruise value of 1.84 ± 0.30 mSv/day (Zeitlin et al., Science, 2013) is a transit measurement and is NOT used for the surface environment |
 | Exercise | 120 min/day target | NASA operational practice: ISS crew exercise ~2 h/day (ARED + aerobic) |
@@ -100,7 +102,7 @@ These are the resources listed on the challenge's official Resources tab, plus t
 - **Why Do We Conduct Science Experiments in Space? (Canadian Space Agency)** · https://www.asc-csa.gc.ca/eng/iss/science/why-do-we-conduct-science-experiments-in-space.asp
 - **NASA Open Science Data Repository (OSDR)** · https://osdr.nasa.gov · open space-biology data; used for background reference ranges and findings (e.g. Inspiration4 civilian-astronaut dataset summaries)
 - **NASA Life Sciences Portal (NLSP)** · https://nlsp.nasa.gov · gateway to HRP archive data
-- **NASA Image and Video Library** · https://images.nasa.gov · the three banner photographs, downloaded and bundled locally in `assets/`: Earth at night from the ISS (iss043e218074, NASA/JSC), an astronaut in the ISS Cupola (iss030e033294, NASA/ESA), and the surface of Mars at Gale Crater (PIA16018, NASA/JPL-Caltech/MSSS). NASA does not endorse this project.
+- **NASA Image and Video Library** · https://images.nasa.gov · the source of the one photograph the UI displays, downloaded and bundled locally in `assets/`: Earth at night from the ISS (iss043e218074, NASA/JSC). Two further images from the same library (an astronaut in the ISS Cupola, iss030e033294, NASA/ESA; the surface of Mars at Gale Crater, PIA16018, NASA/JPL-Caltech/MSSS) are bundled in `assets/` from an earlier design but are not displayed. NASA does not endorse this project.
 
 No NASA logos, branding, flags or mission identifiers are used anywhere in this project.
 

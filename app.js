@@ -163,11 +163,11 @@ function renderEnvPanel() {
   $('env-countermeasures').textContent = e.countermeasures;
   $('env-dose-rate').textContent = effectiveDoseRate().toFixed(1) + ' mSv/day (dose equivalent)' +
     (scenarioId !== 'nominal' ? ' (scenario simulation: ' + V.SCENARIOS[scenarioId].label + ')' : '');
-  $('env-dose-budget').textContent = e.radAlertThreshold.toFixed(2) + ' mSv/day';
+  $('env-dose-budget').textContent = e.radAlertThreshold.toFixed(2) + ' mSv';
   $('env-line').textContent =
     'Environment: ' + e.label + ' · Gravity: ' + e.gravity + ' · Comms: ' + e.commDelay;
   $('rad-chart-note').textContent =
-    'Daily dose vs ' + e.label + ' action level (' + e.radAlertThreshold.toFixed(2) + ' mSv/day)';
+    'Daily dose vs ' + e.label + ' action level (' + e.radAlertThreshold.toFixed(2) + ' mSv)';
 }
 
 /* ---------- Scenario Simulator ---------- */
@@ -934,7 +934,7 @@ function answerProject(question, ctx) {
       /\balert (system|engine|rules?|logic)\b/.test(q) || /\bwhat (is|does) an alert (mean|do)\b/.test(q) ||
       /\bwhat do alerts mean\b/.test(q)) {
     return {
-      a: 'Alerts are rule-based, not a black box. Every few seconds each astronaut\'s simulated readings are checked against fixed thresholds: for example, resting heart rate above 100 bpm, SpO2 below 95%, sleep under 6 h, or stress above 7 out of 10. Crossing a watch threshold raises an amber alert; crossing the action threshold raises a red one. Three crossings together (sleep under 6 h AND stress above 7 AND resting heart rate above 100) fire one compound alert, "Compound Fatigue & Cardiovascular Strain", which replaces the three separate warnings so the problem is shown once, whole. Radiation uses an action level set at 90% of the current environment\'s daily dose rate: a watch at 80% of that level, an alert at the level itself. Every alert shows its trigger, the live evidence, a suggested action, its basis and its limitation. The thresholds are demo rules (simulation assumptions, labelled in Methodology), not NASA limits.',
+      a: 'Alerts are rule-based, not a black box. Every few seconds each astronaut\'s simulated readings are checked against fixed thresholds: for example, resting heart rate above 100 bpm, SpO2 below 95%, sleep under 6 h, or stress above 7 out of 10. Crossing a watch threshold raises an amber alert; crossing the action threshold raises a red one. Three crossings together (sleep under 6 h AND stress above 7 AND resting heart rate above 100) fire one compound alert, "Compound Fatigue & Cardiovascular Strain", which replaces the three separate warnings so the problem is shown once, whole. Radiation uses a daily action level: an accumulated dose (in mSv) set at 90% of one full day\'s dose at the current environment\'s dose rate, compared against the dose accumulated so far today: a watch at 80% of that level, an alert at the level itself. Every alert shows its trigger, the live evidence, a suggested action, its basis and its limitation. The thresholds are demo rules (simulation assumptions, labelled in Methodology), not NASA limits.',
       learn: PROJECT_LEARN,
     };
   }
@@ -1146,11 +1146,16 @@ function liveTick() {
     // session can be counted twice, and tiles/timeline/alerts agree.
     v.exercise = V.exerciseAt(crew, missionDayMinutes() % 1440);
     // Cumulative radiation grows with the effective (scenario-scaled) dose
-    // rate. Keep full float precision here: rounding to 3 decimals every
+    // rate, scaled by THIS crew member's exposure factor (crew.radFactor),
+    // exactly as radTodayFor() computes today's dose: cumulative and daily
+    // dose follow the same per-crew exposure model. (Before this fix the
+    // cumulative increment ignored radFactor, so every astronaut accrued
+    // mission dose at the same rate while their daily doses differed.)
+    // Keep full float precision here: rounding to 3 decimals every
     // tick (the old code) discarded the whole per-tick increment
     // (~0.00008 mSv), so the cumulative dose never actually grew.
     // Display rounds it (toFixed(1) in the tile).
-    v.radCumulative = v.radCumulative + (effectiveDoseRate() * 3) / 86400;
+    v.radCumulative = v.radCumulative + (effectiveDoseRate() * (crew.radFactor || 1) * 3) / 86400;
     // Keep today's history point in step with the live value (per-crew dose),
     // and keep the canonical unit-day base in step too, so an environment
     // switch later re-derives today's point exactly.
@@ -1225,7 +1230,7 @@ function renderOverview() {
 
   $('ov-radiation').innerHTML =
     '<div class="ov-line"><span>Dose rate (dose equivalent)</span><span class="val">' + effectiveDoseRate().toFixed(2) + ' mSv/day</span></div>' +
-    '<div class="ov-line"><span>Daily action level</span><span class="val">' + e.radAlertThreshold.toFixed(2) + ' mSv/day</span></div>' +
+    '<div class="ov-line"><span>Daily action level</span><span class="val">' + e.radAlertThreshold.toFixed(2) + ' mSv</span></div>' +
     '<div class="ov-line"><span>' + crew.name.split(' ').pop() + ' today · cumulative</span><span class="val">' + radTodayFor(crew).toFixed(2) + ' · ' + crew.vitals.radCumulative.toFixed(1) + ' mSv</span></div>';
 
   $('ov-risk').innerHTML = V.HAZARDS.map((h) => {
@@ -1309,7 +1314,23 @@ function initScrollspy() {
   document.querySelectorAll('.view').forEach((v) => obs.observe(v));
 }
 
+/* Legacy deep link: the AI Assistant used to be a page view, so old
+   bookmarks may carry #view-assistant. That view no longer exists; the
+   assistant lives in the floating panel. Support the old hash gracefully:
+   land on the Overview and open the assistant panel. Any other hash is
+   left to the browser's normal anchor handling (an unknown hash simply
+   matches nothing and cannot break the page). */
+function handleLegacyHash() {
+  if (window.location.hash !== '#view-assistant') return;
+  history.replaceState(null, '', '#view-overview');
+  const overview = $('view-overview');
+  if (overview) overview.scrollIntoView();
+  setChatPanel(true);
+}
+
 function initRedesign() {
+  window.addEventListener('hashchange', handleLegacyHash);
+  handleLegacyHash();
   const fab = $('chat-fab');
   if (fab) {
     fab.addEventListener('click', () => setChatPanel(!chatPanelOpen));

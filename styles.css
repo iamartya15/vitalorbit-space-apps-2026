@@ -14,7 +14,7 @@
   --line-strong: #2b405c;  /* emphasised border */
   --text: #e7eef7;
   --muted: #96a9bf;
-  --faint: #67798f;
+  --faint: #71869c;   /* audit fix: was #67798f, 4.15:1 on panel — below WCAG AA for the small clock label that uses it */
 
   /* One accent */
   --accent: #4da3ff;
@@ -94,6 +94,22 @@ button { font-family: var(--font); cursor: pointer; }
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Skip link: the first focusable element on the page. Visually hidden
+   until it receives keyboard focus, then fixed at the top-left above the
+   sticky header so a keyboard or switch user can jump straight to the
+   dashboard content. */
+.skip-link {
+  position: fixed; top: 8px; left: 8px; z-index: 200;
+  width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  white-space: nowrap;
+}
+.skip-link:focus-visible {
+  width: auto; height: auto; clip-path: none; overflow: visible;
+  padding: 10px 16px; background: var(--panel); color: var(--text);
+  border: 1px solid var(--accent); border-radius: var(--r-md);
+  font-weight: 600; text-decoration: none;
 }
 
 /* Screen-reader-only content (chart summaries, alert announcer) */
@@ -526,7 +542,7 @@ footer .fine { margin-top: 4px; }
 }
 .cabin-guidance b { color: var(--text); }
 .hazard-card .h-details { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
-.hazard-card .h-details summary { cursor: pointer; font-size: var(--fs-sm); font-weight: 600; color: var(--accent); }
+.hazard-card .h-details summary { cursor: pointer; padding: 3px 0; font-size: var(--fs-sm); font-weight: 600; color: var(--accent); } /* padding: audit fix — target height 26px, meets WCAG 2.2 AA 24px minimum */
 .hazard-card .h-details p { margin-top: 6px; }
 .hazard-card .h-details b { color: var(--text); }
 .chat-safety { font-size: var(--fs-sm); color: var(--amber); margin: 0 0 10px; }
@@ -632,13 +648,16 @@ footer { max-width: 1480px; }
 
 /* Views */
 .view { scroll-margin-top: 84px; margin-bottom: 30px; min-width: 0; }
+/* The skip link targets <main>; it needs the same sticky-header clearance
+   as the views so the jump never lands under the header. */
+main { scroll-margin-top: 84px; }
 /* Wide desktop (over 1500px): the clock sub-line reappears (it is hidden at
    1500px and below), the topbar row wraps to two rows and the sticky header
    grows from 81px to 128px, so anchor targets need the taller offset to land
    clear of it, and the sticky sidebar must dock below the taller header so
    its "Mission views" title never slides underneath. Header height + gap. */
 @media (min-width: 1501px) {
-  .view { scroll-margin-top: 132px; }
+  .view, main { scroll-margin-top: 132px; }
   .sidebar { top: 132px; }
 }
 .view-head { margin: 2px 0 14px; }
@@ -676,7 +695,7 @@ footer { max-width: 1480px; }
 .ov-line .ov-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ov-line .val { font-family: var(--mono); font-size: var(--fs-sm); text-align: right; }
 .ov-quiet { color: var(--muted); font-size: var(--fs-base); }
-.ov-link { display: inline-block; margin-top: 9px; color: var(--accent); font-size: var(--fs-sm); font-weight: 600; text-decoration: none; }
+.ov-link { display: inline-block; margin-top: 9px; padding: 3px 2px; color: var(--accent); font-size: var(--fs-sm); font-weight: 600; text-decoration: none; } /* padding: audit fix — target height 26px, meets WCAG 2.2 AA 24px minimum */
 .ov-link:hover { text-decoration: underline; }
 .ov-sub { font-size: var(--fs-lg); margin: 4px 0 10px; }
 .quick-grid { margin-bottom: 16px; }
@@ -811,17 +830,17 @@ footer { max-width: 1480px; }
   }
   .side-link.active { border-bottom-color: var(--violet); }
   /* Anchor targets clear the sticky stack: header (110) + strip (64) + gap. */
-  .view { scroll-margin-top: 184px; }
+  .view, main { scroll-margin-top: 184px; }
 }
 /* Compact-header range (630-720px): the header fits on one row (57px). */
 @media (max-width: 720px) {
   .sidebar { top: 57px; }
-  .view { scroll-margin-top: 131px; }
+  .view, main { scroll-margin-top: 131px; }
 }
 /* Small phones (up to 629px): the header wraps to two rows again (86px). */
 @media (max-width: 629px) {
   .sidebar { top: 86px; }
-  .view { scroll-margin-top: 160px; }
+  .view, main { scroll-margin-top: 160px; }
 }
 @media (max-width: 760px) {
   /* Mobile card: centred with side margins, about 70% of the dynamic
@@ -862,7 +881,7 @@ html[data-theme="light"] {
   --line-strong: #92b0cc;
   --text: #12263c;
   --muted: #44607d;
-  --faint: #5c7994;
+  --faint: #52708c;   /* audit fix: was #5c7994, 4.04:1 on the page background — below WCAG AA for small text */
   --accent: #1c6dd0;
   --accent-hover: #155cb2;
   --accent-dim: #1c64bd;
