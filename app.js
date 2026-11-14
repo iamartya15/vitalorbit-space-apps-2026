@@ -468,8 +468,124 @@ function cabinTick() {
   }
 }
 
+/* ---------- Theme (dark / light) ----------
+   Presentation only: no simulated value, rule or chart datum depends on
+   the theme. The boot script in index.html sets data-theme on <html>
+   before first paint (the stored choice, dark when unset); this module
+   owns the header toggle, localStorage persistence, the Chart.js
+   re-theme, and the pointer parallax on the background layers. */
+const THEME_KEY = 'vitalorbit-theme';
+const themeStore = {
+  get() { try { return window.localStorage.getItem(THEME_KEY); } catch (e) { return null; } },
+  set(v) { try { window.localStorage.setItem(THEME_KEY, v); } catch (e) { /* storage unavailable: the theme still applies for this session */ } },
+};
+function currentTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
+function syncThemeToggle() {
+  const btn = $('theme-toggle');
+  if (!btn) return;
+  const t = currentTheme();
+  btn.setAttribute('aria-pressed', t === 'dark' ? 'true' : 'false');
+  btn.setAttribute('aria-label', t === 'dark'
+    ? 'Dark theme active. Switch to light theme'
+    : 'Light theme active. Switch to dark theme');
+  const label = btn.querySelector('.theme-toggle-label');
+  if (label) label.textContent = t === 'dark' ? 'Dark' : 'Light';
+}
+
+function setTheme(name) {
+  document.documentElement.setAttribute('data-theme', name);
+  themeStore.set(name);
+  syncThemeToggle();
+  rethemeCharts();
+}
+
+function initTheme() {
+  // Align the mutable chart palette and the toggle with the theme the
+  // boot script already applied, then wire the toggle.
+  Object.assign(CHART_COLORS, CHART_PALETTES[currentTheme()]);
+  syncThemeToggle();
+  const btn = $('theme-toggle');
+  if (btn) btn.addEventListener('click', () => setTheme(currentTheme() === 'dark' ? 'light' : 'dark'));
+  // Colour transitions start only after first paint, so loading with a
+  // stored light theme never animates away from the dark default.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.documentElement.classList.add('theme-transitions');
+  }));
+}
+
+/* Pointer parallax on the decorative background layers: tiny offsets,
+   lerped on requestAnimationFrame, desktop fine pointers only, and never
+   under prefers-reduced-motion. Purely decorative; no data meaning. */
+function initParallax() {
+  const finePointer = window.matchMedia('(pointer: fine)');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (!finePointer.matches || reducedMotion.matches) return;
+  let tx = 0, ty = 0, cx = 0, cy = 0, raf = null;
+  const step = () => {
+    cx += (tx - cx) * 0.06;
+    cy += (ty - cy) * 0.06;
+    document.body.style.setProperty('--par-x', cx.toFixed(2) + 'px');
+    document.body.style.setProperty('--par-y', cy.toFixed(2) + 'px');
+    if (Math.abs(tx - cx) > 0.1 || Math.abs(ty - cy) > 0.1) raf = requestAnimationFrame(step);
+    else raf = null;
+  };
+  window.addEventListener('pointermove', (ev) => {
+    tx = (ev.clientX / Math.max(1, window.innerWidth) - 0.5) * 14;
+    ty = (ev.clientY / Math.max(1, window.innerHeight) - 0.5) * 10;
+    if (!raf) raf = requestAnimationFrame(step);
+  }, { passive: true });
+}
+
 /* ---------- Charts ---------- */
-const CHART_COLORS = { line: '#4da3ff', band: 'rgba(47, 191, 113, 0.18)', grid: 'rgba(143, 163, 184, 0.15)', tick: '#8fa3b8' };
+/* Two full chart palettes. CHART_COLORS is the mutable working copy the
+   chart builders read; a theme switch copies the active palette into it
+   and pushes the colour fields into every live chart (data untouched). */
+const CHART_PALETTES = {
+  dark: { line: '#4da3ff', band: 'rgba(47, 191, 113, 0.18)', grid: 'rgba(143, 163, 184, 0.15)', tick: '#8fa3b8',
+          tooltipBg: '#101a28', tooltipBorder: '#2b405c', tooltipTitle: '#e7eef7', tooltipBody: '#c9d8ea', point: '#fff' },
+  light: { line: '#1c6dd0', band: 'rgba(23, 138, 76, 0.16)', grid: 'rgba(30, 64, 105, 0.14)', tick: '#47617e',
+           tooltipBg: '#ffffff', tooltipBorder: '#b9cbdf', tooltipTitle: '#12263f', tooltipBody: '#33506f', point: '#fff' },
+};
+const CHART_COLORS = { line: '#4da3ff', band: 'rgba(47, 191, 113, 0.18)', grid: 'rgba(143, 163, 184, 0.15)', tick: '#8fa3b8',
+  tooltipBg: '#101a28', tooltipBorder: '#2b405c', tooltipTitle: '#e7eef7', tooltipBody: '#c9d8ea', point: '#fff' };
+
+/* Push the active palette into every live Chart.js instance: line, band,
+   grid, tick and tooltip colours only. Data, scales and bands (the safe
+   range geometry) are never touched. */
+function rethemeCharts() {
+  const pal = CHART_PALETTES[currentTheme()];
+  Object.assign(CHART_COLORS, pal);
+  Object.keys(charts).forEach((key) => {
+    const chart = charts[key];
+    if (!chart) return;
+    const ds = chart.data.datasets;
+    if (ds[1]) ds[1].backgroundColor = pal.band;
+    const main = ds[ds.length - 1];
+    if (main) {
+      main.borderColor = pal.line;
+      main.backgroundColor = pal.line;
+      main.pointBackgroundColor = pal.point;
+    }
+    ['x', 'y'].forEach((axis) => {
+      const scale = chart.options.scales[axis];
+      if (!scale) return;
+      if (scale.grid) scale.grid.color = pal.grid;
+      if (scale.ticks) scale.ticks.color = pal.tick;
+      if (scale.title) scale.title.color = pal.tick;
+    });
+    const tip = chart.options.plugins && chart.options.plugins.tooltip;
+    if (tip) {
+      tip.backgroundColor = pal.tooltipBg;
+      tip.borderColor = pal.tooltipBorder;
+      tip.titleColor = pal.tooltipTitle;
+      tip.bodyColor = pal.tooltipBody;
+    }
+    chart.update('none');
+  });
+}
 
 function bandDatasets(low, high, labels) {
   const n = labels.length;
@@ -485,7 +601,7 @@ function makeChart(canvasId, low, high, data, yMin, yMax, yLabel) {
   datasets.push({
     label: yLabel, data: data.slice(),
     borderColor: CHART_COLORS.line, backgroundColor: CHART_COLORS.line,
-    tension: 0.25, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#fff',
+    tension: 0.25, borderWidth: 2, pointRadius: 3, pointBackgroundColor: CHART_COLORS.point,
   });
   return new Chart(ctx, {
     type: 'line',
@@ -497,8 +613,8 @@ function makeChart(canvasId, low, high, data, yMin, yMax, yLabel) {
         legend: { display: false },
         tooltip: {
           mode: 'index', intersect: false,
-          backgroundColor: '#101a28', borderColor: '#2b405c', borderWidth: 1,
-          titleColor: '#e7eef7', bodyColor: '#c9d8ea', padding: 10,
+          backgroundColor: CHART_COLORS.tooltipBg, borderColor: CHART_COLORS.tooltipBorder, borderWidth: 1,
+          titleColor: CHART_COLORS.tooltipTitle, bodyColor: CHART_COLORS.tooltipBody, padding: 10,
           // Only the measured series is explained; the safe-band datasets are shading, not values.
           filter: (item) => item.dataset.label === yLabel,
           callbacks: { label: (item) => ' ' + item.dataset.label + ': ' + item.parsed.y },
@@ -797,15 +913,29 @@ function initChatbot() {
     b.addEventListener('click', () => askChatbot(q));
     chips.appendChild(b);
   });
-  $('chat-send').addEventListener('click', () => {
-    askChatbot($('chat-input').value);
-    $('chat-input').value = '';
-  });
-  $('chat-input').addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') {
-      askChatbot($('chat-input').value);
-      $('chat-input').value = '';
+  // One submit path for the Ask button and Enter. The answer logic is
+  // synchronous and unchanged; the busy flag simply disables Ask while an
+  // answer is being produced and drops duplicate submissions (double
+  // clicks, held Enter). The input is single-line, so Enter always sends.
+  let chatBusy = false;
+  const submitChat = () => {
+    if (chatBusy) return;
+    const input = $('chat-input');
+    if (!input.value.trim()) return;
+    chatBusy = true;
+    $('chat-send').disabled = true;
+    try {
+      askChatbot(input.value);
+    } finally {
+      chatBusy = false;
+      $('chat-send').disabled = false;
     }
+    input.value = '';
+    input.focus();
+  };
+  $('chat-send').addEventListener('click', submitChat);
+  $('chat-input').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') submitChat();
   });
 }
 
@@ -1012,25 +1142,40 @@ function renderAdherence() {
    moved into the floating panel. Moving the node moves the live chat
    state with it; no chatbot logic is duplicated. */
 let chatPanelOpen = false;
+let chatHideTimer = null;
 function setChatPanel(open) {
   const panel = $('chat-panel');
   const section = $('chatbot-section');
   if (!panel || !section) return;
   chatPanelOpen = open;
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (open) {
+    if (chatHideTimer) { clearTimeout(chatHideTimer); chatHideTimer = null; }
     $('chat-panel-body').appendChild(section);
     panel.hidden = false;
     $('chat-backdrop').hidden = false;
     $('chat-fab').setAttribute('aria-expanded', 'true');
+    // Slide/fade in on the next frame; reduced motion shows it at once.
+    if (reduced) panel.classList.add('open');
+    else requestAnimationFrame(() => requestAnimationFrame(() => { if (chatPanelOpen) panel.classList.add('open'); }));
     const input = $('chat-input');
     if (input) input.focus();
   } else {
-    const home = $('chat-home');
-    if (home && home.parentNode) home.parentNode.insertBefore(section, home.nextSibling);
-    panel.hidden = true;
-    $('chat-backdrop').hidden = true;
+    panel.classList.remove('open');
     $('chat-fab').setAttribute('aria-expanded', 'false');
     $('chat-fab').focus();
+    // The section (and with it the whole conversation history) moves home
+    // only once the card has faded, and only if it was not reopened.
+    const finish = () => {
+      chatHideTimer = null;
+      if (chatPanelOpen) return;
+      const home = $('chat-home');
+      if (home && home.parentNode) home.parentNode.insertBefore(section, home.nextSibling);
+      panel.hidden = true;
+      $('chat-backdrop').hidden = true;
+    };
+    if (reduced) finish();
+    else chatHideTimer = setTimeout(finish, 190);
   }
 }
 
@@ -1098,6 +1243,8 @@ function init() {
   renderSources();
   initChatbot();
   initRedesign();
+  initTheme();
+  initParallax();
   tickClock();
   ensureCharts((ok) => { if (ok) buildCharts(); else showChartsFallback(); });
   setInterval(tickClock, 1000);

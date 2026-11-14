@@ -57,9 +57,19 @@
   --r-md: 8px;             /* tiles, boxes, inputs */
   --r-sm: 6px;             /* chips, buttons, icon frames */
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.35);
+
+  /* Theme-aware slots (dark values; light overrides live in the theme block) */
+  --text-strong: #ffffff;  /* clock numerals */
+  --track: #1e3049;        /* range-bar track */
+  --marker: #ffffff;       /* range-bar marker */
+  --accent-ink: #071120;   /* text on accent-filled buttons */
+  --nav-bg: rgba(10, 19, 34, 0.92);
+  --shadow-card: 0 24px 60px rgba(0, 0, 0, 0.45);  /* floating chat card */
 
   --maxw: 1280px;
 }
+html { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -139,9 +149,10 @@ header.topbar {
   padding: 2px 8px;
   white-space: nowrap;
 }
-.clockbox { margin-left: auto; text-align: right; font-family: var(--mono); }
+.clockbox { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.clock-stack { text-align: right; font-family: var(--mono); }
 .clockbox .label { font-size: 0.62rem; letter-spacing: 0.14em; color: var(--faint); text-transform: uppercase; }
-.clockbox .clock { font-size: 1.02rem; font-weight: 700; color: #fff; line-height: 1.2; }
+.clockbox .clock { font-size: 1.02rem; font-weight: 700; color: var(--text-strong); line-height: 1.2; }
 .clockbox .sub { font-size: var(--fs-xs); color: var(--muted); }
 .live-pill {
   display: inline-flex;
@@ -171,7 +182,8 @@ header.topbar {
   .brand { flex-wrap: nowrap; gap: 8px; }
   .brand h1 { font-size: 1rem; }
   .brand-suffix { display: none; }
-  .clockbox { display: flex; align-items: center; gap: 10px; }
+  .clockbox { gap: 10px; }
+  .clock-stack { display: flex; align-items: center; gap: 10px; }
   .clockbox .label { display: none; }
   .clockbox .clock { font-size: 0.9rem; white-space: nowrap; }
   .live-pill { margin-top: 0; }
@@ -339,12 +351,12 @@ section.panel {
    NOT clipped at the extremes, and it is centred on the value with a
    transform instead of a fragile calc() offset. */
 .range-bar { display: block; height: 6px; margin-top: 8px; position: relative; }
-.range-track { position: absolute; inset: 0; background: #1e3049; border-radius: 3px; overflow: hidden; }
+.range-track { position: absolute; inset: 0; background: var(--track); border-radius: 3px; overflow: hidden; }
 .range-bar .zone { position: absolute; top: 0; bottom: 0; }
 .range-bar .zone.safe { background: rgba(47, 191, 113, 0.45); }
 .range-bar .zone.amber { background: rgba(245, 166, 35, 0.40); }
 .range-bar .zone.red { background: rgba(239, 83, 80, 0.45); }
-.range-bar .marker { position: absolute; top: -2px; bottom: -2px; width: 3px; transform: translateX(-50%); background: #fff; border-radius: 2px; z-index: 2; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45); }
+.range-bar .marker { position: absolute; top: -2px; bottom: -2px; width: 3px; transform: translateX(-50%); background: var(--marker); border-radius: 2px; z-index: 2; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45); }
 .crew-note { margin-top: 12px; color: var(--muted); font-size: 0.9rem; }
 
 /* ---------- Charts ---------- */
@@ -458,7 +470,7 @@ section.panel {
 }
 .chat-input-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
 .chat-input-row button {
-  background: var(--accent); color: #071120; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent);
   border-radius: var(--r-md); padding: 10px 18px; font-weight: 700;
   transition: background-color 0.15s ease;
 }
@@ -532,7 +544,9 @@ footer .fine { margin-top: 4px; }
   --violet: #8b7ff0;    /* controlled violet: nav state + about marker only */
 }
 
-/* One subtle background effect: a slow, faint CSS starfield (decorative graphic, not imagery or data). */
+/* Background layer 1: a slow, faint CSS starfield (decorative graphic, not imagery or data).
+   The pointer parallax transform is set from JS custom properties (--par-x / --par-y);
+   it is disabled for touch pointers and under prefers-reduced-motion. */
 body::before {
   content: "";
   position: fixed;
@@ -546,10 +560,30 @@ body::before {
     radial-gradient(1px 1px at 70px 160px, rgba(255,255,255,.32) 50%, transparent 51%);
   background-size: 240px 240px, 380px 380px, 300px 300px;
   animation: starDrift 240s linear infinite alternate;
+  transform: translate3d(calc(var(--par-x, 0px) * 0.5), calc(var(--par-y, 0px) * 0.5), 0);
 }
 @keyframes starDrift {
   from { background-position: 0 0, 0 0, 0 0; }
   to { background-position: 120px 60px, -80px 40px, 60px -50px; }
+}
+/* Background layer 2: soft atmospheric glow (blue / violet in dark mode),
+   breathing very slowly on opacity only, so it stays compositor-cheap. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -40px;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(720px 480px at 12% -6%, rgba(77, 163, 255, .14), transparent 62%),
+    radial-gradient(820px 560px at 88% 108%, rgba(139, 127, 240, .10), transparent 64%),
+    radial-gradient(560px 380px at 78% -10%, rgba(56, 189, 248, .07), transparent 60%);
+  animation: atmoDrift 90s ease-in-out infinite alternate;
+  transform: translate3d(calc(var(--par-x, 0px) * -0.8), calc(var(--par-y, 0px) * -0.8), 0);
+}
+@keyframes atmoDrift {
+  from { opacity: .7; }
+  to { opacity: 1; }
 }
 .layout, footer { position: relative; z-index: 1; }
 
@@ -570,7 +604,7 @@ footer { max-width: 1480px; }
   position: sticky;
   top: 84px;
   margin-top: 16px;
-  background: rgba(10, 19, 34, .92);
+  background: var(--nav-bg);
   backdrop-filter: blur(6px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -582,16 +616,18 @@ footer { max-width: 1480px; }
 .side-title { margin: 0 4px 8px; font-size: var(--fs-xs); letter-spacing: .16em; text-transform: uppercase; color: var(--violet); font-weight: 700; }
 .side-link {
   display: block;
-  padding: 9px 10px;
+  padding: 11px 12px;
   border-radius: var(--r-md);
   border-left: 3px solid transparent;
   color: var(--muted);
   text-decoration: none;
   font-size: var(--fs-base);
   font-weight: 600;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 .side-link:hover { background: var(--panel2); color: var(--text); }
-.side-link.active { background: var(--panel2); color: var(--text); border-left-color: var(--violet); }
+.side-link:active { background: var(--accent-soft); }
+.side-link.active { background: var(--accent-soft); color: var(--text); border-left-color: var(--violet); }
 .side-note { margin: 10px 4px 0; font-size: var(--fs-sm); color: var(--muted); line-height: 1.5; }
 
 /* Views */
@@ -657,9 +693,12 @@ footer { max-width: 1480px; }
 .adh-list li:last-child { border-bottom: 0; }
 .adh-note { color: var(--muted); font-size: var(--fs-sm); margin-top: 8px; }
 
-/* Floating AI assistant */
+/* Floating AI assistant: a compact card anchored bottom-right, never
+   full-screen. The dashboard stays visible behind it (mobile adds a subtle
+   backdrop). The card follows the theme variables, so a theme switch
+   restyles it in place, open or closed. */
 .chat-fab {
-  position: fixed; right: 20px; bottom: 20px; z-index: 60;
+  position: fixed; right: 20px; bottom: 20px; z-index: 80;
   display: flex; align-items: center; gap: 8px;
   background: #2563eb; border: 1px solid #4da3ff; color: #fff;
   padding: 12px 17px; border-radius: 999px;
@@ -670,16 +709,29 @@ footer { max-width: 1480px; }
 .chat-fab[aria-expanded="true"] { background: #1d4ed8; }
 .chat-backdrop { position: fixed; inset: 0; background: rgba(2,5,10,.55); z-index: 65; }
 .chat-panel {
-  position: fixed; top: 0; right: 0; z-index: 70;
-  width: min(430px, 100vw); height: 100dvh;
-  background: var(--bg); border-left: 1px solid var(--border);
+  position: fixed; z-index: 70;
+  right: 20px; bottom: 88px;
+  width: 408px; max-width: calc(100vw - 40px);
+  height: min(640px, calc(100vh - 120px));
+  height: min(640px, calc(100dvh - 120px));
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
   display: flex; flex-direction: column;
-  box-shadow: -14px 0 34px rgba(0,0,0,.5);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg), var(--shadow-card);
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  transform-origin: bottom right;
+  transition: opacity 0.18s ease, transform 0.18s ease, background-color 0.25s ease, border-color 0.25s ease;
 }
+.chat-panel.open { opacity: 1; transform: none; }
 .chat-panel[hidden], .chat-backdrop[hidden] { display: none !important; }
 .chat-panel-head {
+  flex: none;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--panel);
+  padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--panel2);
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 .chat-panel-title { font-weight: 700; font-size: var(--fs-base); }
 #chat-close {
@@ -691,10 +743,25 @@ footer { max-width: 1480px; }
 .chat-panel-body { flex: 1; display: flex; min-height: 0; }
 .chat-panel-body .panel {
   flex: 1; margin: 0; border: 0; border-radius: 0; box-shadow: none;
-  display: flex; flex-direction: column; min-height: 0;
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  padding: 12px 14px;
 }
-.chat-panel-body .chat-log { flex: 1; height: auto; min-height: 0; }
+/* The card head already carries the title, so the section's own head is
+   hidden in card context; the disclaimer stays, compact and secondary. */
+.chat-panel-body .section-head { display: none; }
+.chat-panel-body .chat-safety { font-size: 0.72rem; line-height: 1.45; margin: 0 0 8px; }
+/* The message list is the card's only scroll area and takes the majority
+   of its height; chips ride a single scrollable row; input stays pinned. */
+.chat-panel-body .chat-log { flex: 1; height: auto; min-height: 0; overscroll-behavior: contain; }
+.chat-panel-body .chat-chips {
+  flex: none; flex-wrap: nowrap; overflow-x: auto;
+  scrollbar-width: none; margin: 8px 0; padding-bottom: 4px;
+}
+.chat-panel-body .chat-chips::-webkit-scrollbar { display: none; }
+.chat-panel-body .chip { flex: 0 0 auto; }
+.chat-panel-body .chat-input-row { flex: none; }
 .chat-panel-body .chat-input-row input { min-width: 0; }
+.chat-input-row button:disabled { opacity: 0.55; cursor: default; }
 
 @media (min-width: 761px) {
   .chat-backdrop { display: none !important; }
@@ -708,19 +775,32 @@ footer { max-width: 1480px; }
     position: static; margin-top: 12px;
     flex-direction: row; flex-wrap: nowrap; overflow-x: auto;
     padding: 8px; gap: 6px; align-items: center;
+    scrollbar-width: none; -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-padding: 0 8px;
   }
+  .sidebar::-webkit-scrollbar { display: none; }
   .side-title, .side-note { display: none; }
-  .side-link { white-space: nowrap; border-left: 0; border-bottom: 3px solid transparent; border-radius: var(--r-md); }
+  .side-link {
+    flex: 0 0 auto; white-space: nowrap;
+    border-left: 0; border-bottom: 3px solid transparent; border-radius: var(--r-md);
+    padding: 10px 13px;
+  }
   .side-link.active { border-bottom-color: var(--violet); }
   .view { scroll-margin-top: 20px; }
 }
 @media (max-width: 760px) {
+  /* Mobile card: centred with side margins, about 70% of the dynamic
+     viewport tall (never above 75%), floating above the launcher and
+     clear of the Android safe areas. Never full-screen. */
   .chat-panel {
-    top: auto; bottom: 0; left: 0; right: 0; width: 100%;
-    height: 86dvh; border-left: 0; border-top: 1px solid var(--border);
-    border-radius: 16px 16px 0 0;
+    left: 14px; right: 14px; width: auto; max-width: none;
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+    height: 70vh; height: 70dvh;
+    max-height: 75vh; max-height: 75dvh;
+    transform-origin: bottom center;
   }
-  .chat-fab { right: 14px; bottom: 14px; }
+  .chat-fab { right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (max-width: 700px) {
   .ov-grid { grid-template-columns: 1fr; }
@@ -731,5 +811,121 @@ footer { max-width: 1480px; }
 }
 @media (prefers-reduced-motion: reduce) {
   body::before { animation: none; }
+}
+
+/* ================= Theme pass: light palette, theme toggle, transitions =================
+   Dark is the default (:root values above, unchanged). The light palette is a
+   full variable swap under html[data-theme="light"]; the attribute is set
+   before first paint by the boot script in index.html (stored choice,
+   dark when unset), so there is never a wrong-theme flash. */
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg: #edf2f8;
+  --bg2: #e1eaf3;
+  --panel: #ffffff;
+  --panel2: #eef4fa;
+  --border: #c6d6e6;
+  --line-strong: #92b0cc;
+  --text: #12263c;
+  --muted: #44607d;
+  --faint: #5c7994;
+  --accent: #1c6dd0;
+  --accent-hover: #155cb2;
+  --accent-dim: #1c64bd;
+  --accent-soft: rgba(28, 109, 208, 0.10);
+  --green: #14743f;
+  --green-bg: rgba(23, 138, 76, 0.12);
+  --amber: #9c6604;
+  --amber-bg: rgba(217, 146, 10, 0.15);
+  --red: #cf2b25;
+  --red-bg: rgba(207, 43, 37, 0.10);
+  --red-dim: #b3261e;
+  --sim: #856005;
+  --sim-bg: rgba(217, 164, 10, 0.16);
+  --sim-line: rgba(150, 105, 8, 0.5);
+  --shadow: 0 1px 2px rgba(18, 38, 60, 0.10);
+  --shadow-lg: 0 10px 24px rgba(18, 38, 60, 0.14);
+  --text-strong: #0b1a2c;
+  --track: #d2e1f0;
+  --accent-ink: #ffffff;
+  --nav-bg: rgba(255, 255, 255, 0.94);
+  --violet: #6557d8;
+  --shadow-card: 0 24px 60px rgba(18, 38, 60, 0.22);
+}
+/* Status badge borders are literal rgba() in the base rules; restate them in
+   the darker light-theme hues so the outline matches the text colour. */
+html[data-theme="light"] .badge.green { border-color: rgba(20, 116, 63, 0.55); }
+html[data-theme="light"] .badge.amber { border-color: rgba(156, 102, 4, 0.55); }
+html[data-theme="light"] .badge.red { border-color: rgba(207, 43, 37, 0.55); }
+html[data-theme="light"] .live-pill { border-color: rgba(20, 116, 63, 0.55); }
+html[data-theme="light"] .alert-item.red { border-color: rgba(207, 43, 37, 0.45); background: rgba(207, 43, 37, 0.05); }
+html[data-theme="light"] .avatar { border-color: rgba(28, 109, 208, 0.4); }
+
+/* Light-mode background: pale daylight gradients + faint blue particles
+   (the star tiles restated in daylight hues; same slow drift, same layer). */
+html[data-theme="light"] body::before {
+  opacity: .4;
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, rgba(28, 80, 140, .38) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 130px 90px, rgba(28, 109, 208, .30) 50%, transparent 51%),
+    radial-gradient(1px 1px at 70px 160px, rgba(101, 87, 216, .24) 50%, transparent 51%);
+}
+html[data-theme="light"] body::after {
+  background:
+    radial-gradient(760px 500px at 10% -8%, rgba(125, 183, 255, .38), transparent 62%),
+    radial-gradient(840px 560px at 90% 110%, rgba(196, 181, 253, .30), transparent 64%),
+    radial-gradient(600px 400px at 80% -12%, rgba(147, 197, 253, .32), transparent 60%);
+}
+
+/* Theme toggle: compact pill in the header; the icon shows the ACTIVE theme
+   (moon in dark mode, sun in light mode), swapped purely by the attribute. */
+.theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-width: 40px; min-height: 40px;
+  padding: 8px 13px;
+  background: var(--panel2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 999px;
+  font-size: var(--fs-sm); font-weight: 700;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.theme-toggle:active { background: var(--accent-soft); }
+.theme-toggle svg { flex: none; display: block; }
+html[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+html[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+@media (max-width: 720px) {
+  .theme-toggle { padding: 8px; border-radius: 50%; width: 40px; height: 40px; }
+  .theme-toggle .theme-toggle-label { display: none; }
+}
+
+/* Theme switching transition: colours only, never layout. The class is added
+   by JS after first paint so loading a stored theme does not animate. */
+html.theme-transitions body,
+html.theme-transitions header.topbar,
+html.theme-transitions .sidebar,
+html.theme-transitions section.panel,
+html.theme-transitions .ov-card,
+html.theme-transitions .quick-card,
+html.theme-transitions .vital-tile,
+html.theme-transitions .hazard-card,
+html.theme-transitions .chart-box,
+html.theme-transitions .alert-item,
+html.theme-transitions .control-strip,
+html.theme-transitions .about-strip,
+html.theme-transitions .chat-log,
+html.theme-transitions footer {
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+
+/* Subtle card elevation on hover, pointer desktops only (no layout shift:
+   transform and shadow do not reflow). */
+@media (hover: hover) and (min-width: 761px) {
+  .ov-card, .quick-card, .hazard-card { transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.2s ease, background-color 0.2s ease; }
+  .ov-card:hover, .quick-card:hover, .hazard-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+  .crew-card:hover { box-shadow: var(--shadow-lg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before, body::after { animation: none !important; }
 }
 
